@@ -8,12 +8,15 @@ import SettingsScreen from '../screens/SettingsScreen'; // Placeholder
 
 const Tab = createBottomTabNavigator();
 
+// Explicitly type the icon names to match Ionicons' available icons
+type IconName = 'home' | 'home-outline' | 'time' | 'time-outline' | 'flag' | 'flag-outline' | 'settings' | 'settings-outline';
+
 const AppNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+          let iconName: IconName = 'home'; // Default value
 
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
@@ -23,9 +26,13 @@ const AppNavigator = () => {
             iconName = focused ? 'flag' : 'flag-outline';
           } else if (route.name === 'Settings') {
             iconName = focused ? 'settings' : 'settings-outline';
+          } else {
+            console.warn(`Unknown route name: ${route.name}, using default icon 'home'`);
+            iconName = 'home'; // Fallback for unexpected routes
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          // Type assertion to ensure compatibility with Ionicons' name prop
+          return <Ionicons name={iconName as any} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#4A90E2',
         tabBarInactiveTintColor: '#888',

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput,
 import { Svg, Path, Line, Circle, Rect, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { usePuff } from '../context/PuffContext';// Adjust the path
 
 interface ChartDataPoint {
   time: string;
@@ -23,21 +24,19 @@ const initialChartData: ChartDataPoint[] = [
 ];
 
 const HomeScreen = () => {
-  const [puffCount, setPuffCount] = useState(0);
+  const { puffCount, setPuffCount } = usePuff();
   const [lifetimePuffs, setLifetimePuffs] = useState(0);
   const [nicotineStrength, setNicotineStrength] = useState('0');
-  const [nicotineMg, setNicotineMg] = useState(0); // Total nicotine mg for today
-  const [lifetimeNicotineMg, setLifetimeNicotineMg] = useState(0); // Lifetime nicotine mg
+  const [nicotineMg, setNicotineMg] = useState(0);
+  const [lifetimeNicotineMg, setLifetimeNicotineMg] = useState(0);
   const [dailyLimit, setDailyLimit] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [chartData, setChartData] = useState<ChartDataPoint[]>(initialChartData);
   const [lastResetDate, setLastResetDate] = useState<string | null>(null);
-  const [puffTrigger, setPuffTrigger] = useState(0); // Trigger to force SimpleChart update
+  const [puffTrigger, setPuffTrigger] = useState(0);
 
-  // Format nicotine mg for display
   const formattedNicotine = `${nicotineMg.toFixed(2)} mg`;
 
-  // Load saved data and reset daily counts if needed
   useEffect(() => {
     const loadData = async (): Promise<void> => {
       try {
@@ -48,24 +47,22 @@ const HomeScreen = () => {
         const savedDailyLimit = await AsyncStorage.getItem('dailyLimit');
         const savedNicotineStrength = await AsyncStorage.getItem('nicotineStrength');
 
-        console.log('Loaded nicotineStrength:', savedNicotineStrength); // Debug log
+        console.log('Loaded nicotineStrength:', savedNicotineStrength);
 
         if (savedDailyLimit) setDailyLimit(savedDailyLimit);
         if (savedNicotineStrength) {
           setNicotineStrength(savedNicotineStrength);
         } else {
-          setNicotineStrength('0'); // Default if not set
+          setNicotineStrength('0');
         }
 
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const today = new Date().toISOString().split('T')[0];
 
         if (savedLastReset !== today) {
-          // New day: move daily data to lifetime and reset
           const savedPuffTimes = await AsyncStorage.getItem('puffTimes');
           let puffTimes: Array<string | PuffEntry> = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
           const currentStrength = parseFloat(savedNicotineStrength || nicotineStrength) || 0;
 
-          // Calculate daily puffs and nicotine mg for previous day
           const dailyPuffs = puffTimes.filter(item => {
             const puffDate = new Date(typeof item === 'string' ? item : item.time);
             return puffDate.toISOString().split('T')[0] === savedLastReset;
@@ -73,10 +70,8 @@ const HomeScreen = () => {
 
           const dailyNicotine = puffTimes.reduce((sum, item) => {
             if (typeof item === 'string') {
-              // Legacy puff: use current strength
               return sum + currentStrength;
             } else {
-              // Puff with strength
               return sum + item.strength;
             }
           }, 0);
@@ -110,7 +105,6 @@ const HomeScreen = () => {
     loadData();
   }, []);
 
-  // Save data when nicotineStrength or dailyLimit changes
   useEffect(() => {
     const saveData = async () => {
       try {
@@ -123,7 +117,6 @@ const HomeScreen = () => {
     saveData();
   }, [nicotineStrength, dailyLimit]);
 
-  // Handle puff button press, increment puff and nicotine
   const handlePuff = async () => {
     const limit = parseInt(dailyLimit, 10);
     if (!isNaN(limit) && puffCount >= limit) {
@@ -143,10 +136,9 @@ const HomeScreen = () => {
 
       await AsyncStorage.setItem('puffTimes', JSON.stringify(puffTimes));
 
-      // Update nicotine mg
-      setNicotineMg(prev => prev + strength);
+      setNicotineMg((prev: number) => prev + strength);
+      setPuffCount((prev: number) => prev + 1); // Explicitly typed as number via context
 
-      // Trigger SimpleChart to reload data
       setPuffTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error adding puff:', error);
@@ -158,7 +150,6 @@ const HomeScreen = () => {
   };
 
   const handleSave = () => {
-    // Validate inputs
     if (dailyLimit && (isNaN(parseInt(dailyLimit)) || parseInt(dailyLimit) <= 0)) {
       Alert.alert('Invalid input', 'Please enter a valid daily puff limit.');
       return;
@@ -168,12 +159,11 @@ const HomeScreen = () => {
       return;
     }
     setIsModalVisible(false);
-    console.log('Modal saved, nicotineStrength:', nicotineStrength); // Debug log
+    console.log('Modal saved, nicotineStrength:', nicotineStrength);
   };
 
-  // Callback to update puffCount from SimpleChart
   const handlePuffCountUpdate = (count: number) => {
-    setPuffCount(count);
+    setPuffCount(count); // Explicitly typed as number via context
   };
 
   function getSmoothPath(points: { x: number; y: number }[]) {
@@ -187,19 +177,16 @@ const HomeScreen = () => {
       const p2 = points[i + 1];
       const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
 
-      const goingUp = p2.y < p1.y; // next point is higher (smaller y)
+      const goingUp = p2.y < p1.y;
 
       if (goingUp) {
-        // Use Bezier curve when going up
         const cp1x = p1.x + (p2.x - p0.x) / 6;
         const cp1y = p1.y + (p2.y - p0.y) / 6;
-
         const cp2x = p2.x - (p3.x - p1.x) / 6;
         const cp2y = p2.y - (p3.y - p1.y) / 6;
 
         d += ` C${cp1x},${cp1y},${cp2x},${cp2y},${p2.x},${p2.y}`;
       } else {
-        // Straight line if going flat or down
         d += ` L${p2.x},${p2.y}`;
       }
     }
@@ -210,10 +197,7 @@ const HomeScreen = () => {
   function getShadowPath(points: { x: number; y: number }[], chartHeight: number, padding: number) {
     if (points.length < 2) return '';
 
-    // Create the smooth path first (the line)
     const linePath = getSmoothPath(points);
-
-    // Add vertical line down from last point to bottom - padding
     const lastPoint = points[points.length - 1];
     const firstPoint = points[0];
 
@@ -221,190 +205,154 @@ const HomeScreen = () => {
   }
 
   const SimpleChart = ({ puffTrigger, onPuffCountUpdate }: { puffTrigger: number; onPuffCountUpdate: (count: number) => void }) => {
-    const width = Dimensions.get('window').width - 20;
-    const height = 150;
-    const basePadding = 10;
-    const maxLabelWidth = 30;
+  const width = Dimensions.get('window').width - 20;
+  const height = 150;
+  const basePadding = 10;
+  const maxLabelWidth = 30;
 
-    const [points, setPoints] = useState<{ x: number; y: number; time: string; value: number }[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+  const [points, setPoints] = useState<{ x: number; y: number; time: string; value: number }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-    // Helper to convert 12h to 24h
-    const convertToHours = (time: string) => {
-      const [hourStr, period] = time.split(' ');
-      const hour = parseInt(hourStr.split(':')[0], 10);
-      return period === 'AM' && hour === 12 ? 0 :
-             period === 'PM' && hour !== 12 ? hour + 12 :
-             hour;
-    };
-
-    const formatCurrentTime = () => {
-      const now = new Date();
-      const hours = now.getHours();
-      const period = hours >= 12 ? 'PM' : 'AM';
-      const hour12 = hours % 12 || 12;
-      return `${hour12} ${period}`;
-    };
-
-    const now = new Date();
-    const currentHour = now.getHours();
-    const allTimes = ['12 AM', '6 AM', '12 PM', '6 PM', '11 PM'];
-    const passedTimes = allTimes.filter(time => convertToHours(time) <= currentHour);
-    const fixedTimes = passedTimes.includes('12 PM') && currentHour === 12 
-      ? [...passedTimes] 
-      : [...passedTimes, formatCurrentTime()];
-
-    useEffect(() => {
-      const loadPoints = async () => {
-        setIsLoading(true);
-        try {
-          const puffTimesData = await AsyncStorage.getItem('puffTimes');
-          let puffEntries: Array<string | PuffEntry> = puffTimesData ? JSON.parse(puffTimesData) : [];
-
-          // Filter puffs for today
-          const today = new Date().toISOString().split('T')[0];
-          const todayPuffEntries = puffEntries.filter(item => {
-            const puffDate = new Date(typeof item === 'string' ? item : item.time);
-            return puffDate.toISOString().split('T')[0] === today;
-          });
-
-          // Update puff count
-          onPuffCountUpdate(todayPuffEntries.length);
-
-          // Map times to 24h hours (including 'Current')
-          const hoursForPoints = fixedTimes.map(time => (time === 'Current' ? currentHour : convertToHours(time)));
-
-          // Count cumulative puffs up to each hour
-          const cumulativeCounts = hoursForPoints.map(hour =>
-            todayPuffEntries.filter(item => {
-              const puffDate = new Date(typeof item === 'string' ? item : item.time);
-              return puffDate.getHours() <= hour;
-            }).length
-          );
-
-          const maxValue = Math.max(...cumulativeCounts, 1);
-          const padding = basePadding + maxLabelWidth;
-
-          const computedPoints = fixedTimes.map((time, index) => {
-            const value = cumulativeCounts[index];
-            const x = padding + (index * ((width - 2 * padding) / (fixedTimes.length - 1)));
-            const y = height - padding - ((value / maxValue) * (height - 2 * padding));
-            return { x, y, time, value };
-          });
-
-          setPoints(computedPoints);
-        } catch (error) {
-          console.error('Error loading points:', error);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
-      loadPoints();
-    }, [puffTrigger, onPuffCountUpdate]);
-
-    // Handle loading or empty state after all hooks
-    if (isLoading || points.length === 0) {
-      return null;
-    }
-
-    const maxValue = Math.max(...points.map(p => p.value), 1);
-    const padding = basePadding + maxLabelWidth;
-
-    const linePath = getSmoothPath(points);
-    const shadowPath = getShadowPath(points, height, padding);
-
-    return (
-      <View style={[styles.chartContainer, { paddingHorizontal: padding }]}>
-        <Svg height={height} width={width}>
-          <Rect x="0" y="0" width={width} height={height} fill="#1c1c1c" rx="10" />
-          {[height / 2, height - padding].map((y, i) => (
-            <Line
-              key={`hline-${i}`}
-              x1={padding}
-              y1={y}
-              x2={width - padding}
-              y2={y}
-              stroke="#404040"
-              strokeWidth="0.5"
-              strokeDasharray="4"
-            />
-          ))}
-
-          {/* Static red shadow behind line */}
-          <Path
-            d={shadowPath}
-            fill="rgba(255, 0, 0, 0.3)"
-            stroke="none"
-          />
-          {/* Static main line */}
-          <Path
-            d={linePath}
-            fill="none"
-            stroke="#FF3333"
-            strokeWidth="2"
-          />
-
-          {points.map((point, i) => (
-            <Fragment key={`${point.time}-${i}`}>
-              <Circle cx={point.x} cy={point.y} r="3" fill="#FF3333" />
-              {point.value > 0 && (
-                <SvgText
-                  x={point.x}
-                  y={point.y - 10}
-                  fill="#fff"
-                  fontSize="10"
-                  textAnchor="middle"
-                >
-                  {point.value}
-                </SvgText>
-              )}
-            </Fragment>
-          ))}
-
-          {[0, maxValue / 2, maxValue].map((val, i) => {
-            const y = height - padding - (val / maxValue) * (height - 2 * padding);
-            return (
-              <Fragment key={`axis-${i}`}>
-                <Line
-                  x1={0}
-                  y1={y}
-                  x2={width}
-                  y2={y}
-                  stroke="#404040"
-                  strokeWidth="1"
-                  strokeDasharray="5,5"
-                />
-                <SvgText
-                  x={padding - 5}
-                  y={y}
-                  fill="#fff"
-                  fontSize="12"
-                  textAnchor="end"
-                  dy={3}
-                >
-                  {Math.round(val)}
-                </SvgText>
-              </Fragment>
-            );
-          })}
-        </Svg>
-        <View style={styles.chartLabels}>
-          {points.map((p, i) => (
-            <Text
-              key={`label-${i}`}
-              style={[
-                styles.chartLabel,
-                { left: p.x - padding - 25, position: 'absolute' },
-              ]}
-            >
-              {p.time}
-            </Text>
-          ))}
-        </View>
-      </View>
-    );
+  const convertToHours = (time: string) => {
+    const [hourStr, period] = time.split(' ');
+    const hour = parseInt(hourStr.split(':')[0], 10);
+    return period === 'AM' && hour === 12 ? 0 : period === 'PM' && hour !== 12 ? hour + 12 : hour;
   };
+
+  const formatCurrentTime = () => {
+    const now = new Date();
+    const hours = now.getHours();
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12} ${period}`;
+  };
+
+  const now = new Date();
+  const currentHour = now.getHours();
+  const allTimes = ['12 AM', '6 AM', '12 PM', '6 PM', '11 PM'];
+  const passedTimes = allTimes.filter(time => convertToHours(time) <= currentHour);
+  const fixedTimes = passedTimes.includes('12 PM') && currentHour === 12 ? [...passedTimes] : [...passedTimes, formatCurrentTime()];
+
+  useEffect(() => {
+    const loadPoints = async () => {
+      setIsLoading(true);
+      try {
+        const puffTimesData = await AsyncStorage.getItem('puffTimes');
+        let puffEntries: Array<string | PuffEntry> = puffTimesData ? JSON.parse(puffTimesData) : [];
+
+        const today = new Date().toISOString().split('T')[0];
+        const todayPuffEntries = puffEntries.filter(item => {
+          const puffDate = new Date(typeof item === 'string' ? item : item.time);
+          return puffDate.toISOString().split('T')[0] === today;
+        });
+
+        onPuffCountUpdate(todayPuffEntries.length);
+
+        const hoursForPoints = fixedTimes.map(time => (time === 'Current' ? currentHour : convertToHours(time)));
+        const cumulativeCounts = hoursForPoints.map(hour =>
+          todayPuffEntries.filter(item => {
+            const puffDate = new Date(typeof item === 'string' ? item : item.time);
+            return puffDate.getHours() <= hour;
+          }).length
+        );
+
+        const maxValue = Math.max(...cumulativeCounts, 1);
+        const padding = basePadding + maxLabelWidth;
+
+        const computedPoints = fixedTimes.map((time, index) => {
+          const value = cumulativeCounts[index];
+          const x = padding + (index * ((width - 2 * padding) / (fixedTimes.length - 1)));
+          const y = height - padding - ((value / maxValue) * (height - 2 * padding));
+          return { x, y, time, value };
+        });
+
+        setPoints(computedPoints);
+      } catch (error) {
+        console.error('Error loading points:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPoints();
+  }, [puffTrigger, onPuffCountUpdate]);
+
+  if (isLoading || points.length === 0) {
+    return null;
+  }
+
+  const maxValue = Math.max(...points.map(p => p.value), 1);
+  const padding = basePadding + maxLabelWidth;
+
+  const linePath = getSmoothPath(points);
+  const shadowPath = getShadowPath(points, height, padding);
+
+  return (
+    <View style={[styles.chartContainer, { paddingHorizontal: padding }]}>
+      <Svg height={height} width={width}>
+        <Rect x="0" y="0" width={width} height={height} fill="#1c1c1c" rx="10" />
+        {[height / 2, height - padding].map((y, i) => (
+          <Line
+            key={`hline-${i}`}
+            x1={padding}
+            y1={y}
+            x2={width - padding}
+            y2={y}
+            stroke="#404040"
+            strokeWidth="0.5"
+            strokeDasharray="4"
+          />
+        ))}
+        <Path d={shadowPath} fill="rgba(255, 0, 0, 0.3)" stroke="none" />
+        <Path d={linePath} fill="none" stroke="#FF3333" strokeWidth="2" />
+        {points.map((point, i) => (
+          <Fragment key={`${point.time}-${i}`}>
+            <Circle cx={point.x} cy={point.y} r="3" fill="#FF3333" />
+            {point.value > 0 && (
+              <SvgText
+                x={point.x}
+                y={point.y - 10}
+                fill="#fff"
+                fontSize="10"
+                textAnchor="middle"
+              >
+                {String(point.value)} {/* Ensure text is a string */}
+              </SvgText>
+            )}
+          </Fragment>
+        ))}
+        {[0, maxValue / 2, maxValue].map((val, i) => {
+          const y = height - padding - (val / maxValue) * (height - 2 * padding);
+          return (
+            <Fragment key={`axis-${i}`}>
+              <Line x1={0} y1={y} x2={width} y2={y} stroke="#404040" strokeWidth="1" strokeDasharray="5,5" />
+              <SvgText
+                x={padding - 5}
+                y={y}
+                fill="#fff"
+                fontSize="12"
+                textAnchor="end"
+                dy={3}
+              >
+                {String(Math.round(val))} {/* Ensure text is a string */}
+              </SvgText>
+            </Fragment>
+          );
+        })}
+      </Svg>
+      <View style={styles.chartLabels}>
+        {points.map((p, i) => (
+          <Text
+            key={`label-${i}`}
+            style={[styles.chartLabel, { left: p.x - padding - 25, position: 'absolute' }]}
+          >
+            {p.time} {/* Already wrapped in <Text> */}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+};
 
   return (
     <View style={styles.container}>
@@ -414,7 +362,6 @@ const HomeScreen = () => {
           <Text style={styles.freeText}>Free</Text>
         </Text>
       </View>
-      {/* Circular Counter */}
       <TouchableOpacity onPress={handleCirclePress} style={styles.counterContainer}>
         <View style={styles.counterCircle}>
           <Text style={styles.counterText}>{puffCount}</Text>
@@ -423,20 +370,14 @@ const HomeScreen = () => {
           <Text style={styles.nicotineLabel}>NICOTINE</Text>
         </View>
       </TouchableOpacity>
-
-      {/* Usage Chart */}
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>Usage today</Text>
         <SimpleChart puffTrigger={puffTrigger} onPuffCountUpdate={handlePuffCountUpdate} />
       </View>
-
-      {/* Puff Button */}
       <TouchableOpacity style={styles.puffButton} onPress={handlePuff}>
         <Ionicons name="add" size={24} color="#FFF" />
         <Text style={styles.puffButtonText}>PUFF</Text>
       </TouchableOpacity>
-
-      {/* Settings Modal */}
       <Modal
         transparent={true}
         visible={isModalVisible}
