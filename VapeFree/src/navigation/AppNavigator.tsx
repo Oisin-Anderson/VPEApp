@@ -2,7 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../screens/HomeScreen'; // Adjust the path based on your folder structure
-import HistoryScreen from '../screens/HistoryScreen'; // Placeholder
+import StatsScreen from '../screens/StatsScreen'; // Placeholder
 import GoalsScreen from '../screens/GoalsScreen'; // Placeholder
 import SettingsScreen from '../screens/SettingsScreen'; // Placeholder
 
@@ -34,14 +34,21 @@ const AppNavigator = () => {
           // Type assertion to ensure compatibility with Ionicons' name prop
           return <Ionicons name={iconName as any} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#4A90E2',
-        tabBarInactiveTintColor: '#888',
+        tabBarStyle: {
+          backgroundColor: '#212124', // ✅ dark grey background for tab bar
+          borderTopColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,                  // ✅ removes shadow on Android
+          shadowOpacity: 0,       
+        },
+        tabBarActiveTintColor: `rgba(236, 0, 0, 1)`,
+        tabBarInactiveTintColor: `rgba(210, 0, 0, 1)`,
         headerShown: false, // Disable the header for all screens
       })}
       initialRouteName="Home"
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="History" component={HistoryScreen} />
+      <Tab.Screen name="History" component={StatsScreen} />
       <Tab.Screen name="Goals" component={GoalsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, Fragment } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, StyleProp, ViewStyle, TextStyle } from 'react-native';
 import { Svg, Path, Line, Circle, Rect, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { usePuff } from '../context/PuffContext';// Adjust the path
+import { usePuff } from '../context/PuffContext';
 
+// Define interfaces for data
 interface ChartDataPoint {
   time: string;
   value: number;
@@ -13,6 +14,37 @@ interface ChartDataPoint {
 interface PuffEntry {
   time: string;
   strength: number;
+}
+
+// Define interface for styles to match StyleSheet.create structure
+interface AppStyles {
+  container: StyleProp<ViewStyle>;
+  titleContainer: StyleProp<ViewStyle>;
+  counterContainer: StyleProp<ViewStyle>;
+  counterCircle: StyleProp<ViewStyle>;
+  counterText: StyleProp<TextStyle>;
+  counterLabel: StyleProp<TextStyle>;
+  nicotineText: StyleProp<TextStyle>;
+  nicotineLabel: StyleProp<TextStyle>;
+  chartSection: StyleProp<ViewStyle>;
+  sectionTitle: StyleProp<TextStyle>;
+  chartContainer: StyleProp<ViewStyle>;
+  chartLabels: StyleProp<ViewStyle>;
+  chartLabel: StyleProp<TextStyle>;
+  puffButton: StyleProp<ViewStyle>;
+  puffButtonText: StyleProp<TextStyle>;
+  modalOverlay: StyleProp<ViewStyle>;
+  modalContent: StyleProp<ViewStyle>;
+  modalTitle: StyleProp<TextStyle>;
+  inputRow: StyleProp<ViewStyle>;
+  inputLabel: StyleProp<TextStyle>;
+  input: StyleProp<TextStyle>;
+  inputUnit: StyleProp<TextStyle>;
+  saveButton: StyleProp<ViewStyle>;
+  saveButtonText: StyleProp<TextStyle>;
+  appTitle: StyleProp<TextStyle>;
+  vapeText: StyleProp<TextStyle>;
+  freeText: StyleProp<TextStyle>;
 }
 
 const initialChartData: ChartDataPoint[] = [
@@ -34,6 +66,8 @@ const HomeScreen = () => {
   const [chartData, setChartData] = useState<ChartDataPoint[]>(initialChartData);
   const [lastResetDate, setLastResetDate] = useState<string | null>(null);
   const [puffTrigger, setPuffTrigger] = useState(0);
+  const [isInitialized, setIsInitialized] = useState(false);
+
 
   const formattedNicotine = `${nicotineMg.toFixed(2)} mg`;
 
@@ -47,21 +81,24 @@ const HomeScreen = () => {
         const savedDailyLimit = await AsyncStorage.getItem('dailyLimit');
         const savedNicotineStrength = await AsyncStorage.getItem('nicotineStrength');
 
-        console.log('Loaded nicotineStrength:', savedNicotineStrength);
-
-        if (savedDailyLimit) setDailyLimit(savedDailyLimit);
-        if (savedNicotineStrength) {
+        if (savedNicotineStrength !== null) {
+          console.log('Loaded nicotineStrength:', savedNicotineStrength);
           setNicotineStrength(savedNicotineStrength);
         } else {
+          await AsyncStorage.setItem('nicotineStrength', '0');
           setNicotineStrength('0');
         }
 
+        if (savedDailyLimit) setDailyLimit(savedDailyLimit);
+
         const today = new Date().toISOString().split('T')[0];
+        
 
         if (savedLastReset !== today) {
-          const savedPuffTimes = await AsyncStorage.getItem('puffTimes');
+          const today = new Date().toISOString().split('T')[0];
+          const savedPuffTimes = await AsyncStorage.getItem(`puffTimes-${today}`);
           let puffTimes: Array<string | PuffEntry> = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
-          const currentStrength = parseFloat(savedNicotineStrength || nicotineStrength) || 0;
+          const currentStrength = parseFloat(savedNicotineStrength || '0') || 0;
 
           const dailyPuffs = puffTimes.filter(item => {
             const puffDate = new Date(typeof item === 'string' ? item : item.time);
@@ -86,7 +123,8 @@ const HomeScreen = () => {
           setChartData(initialChartData);
           setLastResetDate(today);
 
-          await AsyncStorage.setItem('puffTimes', JSON.stringify([]));
+          
+          await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(puffTimes));
           await AsyncStorage.setItem('lifetimePuffs', newLifetimePuffs.toString());
           await AsyncStorage.setItem('lifetimeNicotineMg', newLifetimeNicotineMg.toString());
           await AsyncStorage.setItem('chartData', JSON.stringify(initialChartData));
@@ -97,6 +135,8 @@ const HomeScreen = () => {
           setChartData(savedChartData ? JSON.parse(savedChartData) : initialChartData);
           setLastResetDate(savedLastReset);
         }
+
+        setIsInitialized(true); // ✅ signal ready
       } catch (error) {
         console.error('Failed to load data:', error);
       }
@@ -106,16 +146,32 @@ const HomeScreen = () => {
   }, []);
 
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        await AsyncStorage.setItem('nicotineStrength', nicotineStrength);
-        await AsyncStorage.setItem('dailyLimit', dailyLimit);
-      } catch (error) {
-        console.log('Error saving data:', error);
-      }
+    const computeNicotineMg = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const savedPuffTimes = await AsyncStorage.getItem(`puffTimes-${today}`);
+      const puffTimes = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
+
+      const parsedStrength = parseFloat(nicotineStrength) || 0;
+
+      const todayPuffs = puffTimes.filter((entry: string | PuffEntry) => {
+        const time = typeof entry === 'string' ? entry : entry.time;
+        return new Date(time).toISOString().split('T')[0] === today;
+      });
+
+      const totalMg = todayPuffs.reduce((sum: number, entry: string | PuffEntry) => {
+        const puffStrength = typeof entry === 'string' ? parsedStrength : entry.strength;
+        return sum + puffStrength;
+      }, 0);
+
+      console.log('Computed nicotineMg for today:', totalMg, 'using strength:', parsedStrength);
+      setNicotineMg(totalMg);
     };
-    saveData();
-  }, [nicotineStrength, dailyLimit]);
+
+    if (isInitialized) {
+      computeNicotineMg();
+    }
+  }, [nicotineStrength, puffTrigger, isInitialized]);
+
 
   const handlePuff = async () => {
     const limit = parseInt(dailyLimit, 10);
@@ -125,20 +181,25 @@ const HomeScreen = () => {
     }
 
     const strength = parseFloat(nicotineStrength) || 0;
+    console.log('Using nicotineStrength on puff:', strength);
+
     const now = new Date();
     const puffTime = now.toISOString();
     const puffEntry: PuffEntry = { time: puffTime, strength };
 
     try {
-      const savedPuffTimes = await AsyncStorage.getItem('puffTimes');
-      const puffTimes = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
-      puffTimes.push(puffEntry);
+      const today = new Date().toISOString().split('T')[0];
 
-      await AsyncStorage.setItem('puffTimes', JSON.stringify(puffTimes));
+      const savedDaily = await AsyncStorage.getItem(`puffTimes-${today}`);
+      const dailyPuffTimes = savedDaily ? JSON.parse(savedDaily) : [];
+
+      dailyPuffTimes.push(puffEntry);
+
+      await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(dailyPuffTimes));
+
 
       setNicotineMg((prev: number) => prev + strength);
-      setPuffCount((prev: number) => prev + 1); // Explicitly typed as number via context
-
+      setPuffCount((prev: number) => prev + 1);
       setPuffTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error adding puff:', error);
@@ -149,21 +210,36 @@ const HomeScreen = () => {
     setIsModalVisible(true);
   };
 
-  const handleSave = () => {
-    if (dailyLimit && (isNaN(parseInt(dailyLimit)) || parseInt(dailyLimit) <= 0)) {
+  const handleSave = async () => {
+    const limit = parseInt(dailyLimit, 10);
+    const strength = parseFloat(nicotineStrength);
+
+    if (dailyLimit && (isNaN(limit) || limit <= 0)) {
       Alert.alert('Invalid input', 'Please enter a valid daily puff limit.');
       return;
     }
-    if (nicotineStrength && (isNaN(parseFloat(nicotineStrength)) || parseFloat(nicotineStrength) < 0)) {
+
+    if (nicotineStrength && (isNaN(strength) || strength < 0)) {
       Alert.alert('Invalid input', 'Please enter a valid nicotine strength.');
       return;
     }
-    setIsModalVisible(false);
-    console.log('Modal saved, nicotineStrength:', nicotineStrength);
+
+    try {
+      // ✅ Save explicitly, not via useEffect
+      await AsyncStorage.setItem('nicotineStrength', nicotineStrength);
+      await AsyncStorage.setItem('dailyLimit', dailyLimit);
+
+      console.log('Saved nicotineStrength to storage:', nicotineStrength);
+
+      setIsModalVisible(false);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      Alert.alert('Error', 'Failed to save settings. Please try again.');
+    }
   };
 
   const handlePuffCountUpdate = (count: number) => {
-    setPuffCount(count); // Explicitly typed as number via context
+    setPuffCount(count);
   };
 
   function getSmoothPath(points: { x: number; y: number }[]) {
@@ -204,71 +280,86 @@ const HomeScreen = () => {
     return `${linePath} L${lastPoint.x},${chartHeight - padding} L${firstPoint.x},${chartHeight - padding} L${firstPoint.x},${firstPoint.y} Z`;
   }
 
-  const SimpleChart = ({ puffTrigger, onPuffCountUpdate }: { puffTrigger: number; onPuffCountUpdate: (count: number) => void }) => {
-  const width = Dimensions.get('window').width - 20;
-  const height = 150;
-  const basePadding = 10;
-  const maxLabelWidth = 30;
+  const SimpleChart = ({
+    puffTrigger,
+    onPuffCountUpdate,
+    styles,
+  }: {
+    puffTrigger: number;
+    onPuffCountUpdate: (count: number) => void;
+    styles: AppStyles;
+  }) => {
+    const width = Dimensions.get('window').width - 20;
+    const height = 150;
+    const basePadding = 10;
+    const maxLabelWidth = 30;
 
-  const [points, setPoints] = useState<{ x: number; y: number; time: string; value: number }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+    const [points, setPoints] = useState<{ x: number; y: number; time: string; value: number }[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-  const convertToHours = (time: string) => {
-    const [hourStr, period] = time.split(' ');
-    const hour = parseInt(hourStr.split(':')[0], 10);
-    return period === 'AM' && hour === 12 ? 0 : period === 'PM' && hour !== 12 ? hour + 12 : hour;
-  };
+    const convertToHours = (time: string) => {
+      const [hourStr, period] = time.split(' ');
+      const hour = parseInt(hourStr.split(':')[0], 10);
+      return period === 'AM' && hour === 12 ? 0 : period === 'PM' && hour !== 12 ? hour + 12 : hour;
+    };
 
-  const formatCurrentTime = () => {
+    const formatCurrentTime = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const hour12 = hours % 12 || 12;
+      return `${hour12} ${period}`;
+    };
+
     const now = new Date();
-    const hours = now.getHours();
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const hour12 = hours % 12 || 12;
-    return `${hour12} ${period}`;
-  };
+    const currentHour = now.getHours();
+    const allTimes = ['12 AM', '6 AM', '12 PM', '6 PM', '11 PM'];
+    const passedTimes = allTimes.filter(time => convertToHours(time) <= currentHour);
+    const fixedTimes = passedTimes.includes('12 PM') && currentHour === 12 ? [...passedTimes] : [...passedTimes, formatCurrentTime()];
 
-  const now = new Date();
-  const currentHour = now.getHours();
-  const allTimes = ['12 AM', '6 AM', '12 PM', '6 PM', '11 PM'];
-  const passedTimes = allTimes.filter(time => convertToHours(time) <= currentHour);
-  const fixedTimes = passedTimes.includes('12 PM') && currentHour === 12 ? [...passedTimes] : [...passedTimes, formatCurrentTime()];
-
-  useEffect(() => {
+    useEffect(() => {
     const loadPoints = async () => {
       setIsLoading(true);
       try {
-        const puffTimesData = await AsyncStorage.getItem('puffTimes');
-        let puffEntries: Array<string | PuffEntry> = puffTimesData ? JSON.parse(puffTimesData) : [];
+        const todayStr = new Date().toISOString().split('T')[0];
+        const json = await AsyncStorage.getItem(`puffTimes-${todayStr}`);
+        const entries: PuffEntry[] = json ? JSON.parse(json) : [];
 
-        const today = new Date().toISOString().split('T')[0];
-        const todayPuffEntries = puffEntries.filter(item => {
-          const puffDate = new Date(typeof item === 'string' ? item : item.time);
-          return puffDate.toISOString().split('T')[0] === today;
-        });
+        const now = new Date();
+        const currentHour = now.getHours();
+        const cumulativeCounts: number[] = [];
 
-        onPuffCountUpdate(todayPuffEntries.length);
+        let runningTotal = 0;
 
-        const hoursForPoints = fixedTimes.map(time => (time === 'Current' ? currentHour : convertToHours(time)));
-        const cumulativeCounts = hoursForPoints.map(hour =>
-          todayPuffEntries.filter(item => {
-            const puffDate = new Date(typeof item === 'string' ? item : item.time);
-            return puffDate.getHours() <= hour;
-          }).length
-        );
+        for (let hour = 0; hour <= currentHour; hour++) {
+          const countThisHour = entries.filter(e => {
+            const date = new Date(typeof e === 'string' ? e : e.time);
+            return date.getHours() === hour && date.toISOString().split('T')[0] === todayStr;
+          }).length;
 
-        const maxValue = Math.max(...cumulativeCounts, 1);
+          runningTotal += countThisHour;
+          cumulativeCounts.push(runningTotal);
+        }
+
+        onPuffCountUpdate(runningTotal);
+
         const padding = basePadding + maxLabelWidth;
+        const maxValue = Math.max(...cumulativeCounts, 1);
 
-        const computedPoints = fixedTimes.map((time, index) => {
-          const value = cumulativeCounts[index];
-          const x = padding + (index * ((width - 2 * padding) / (fixedTimes.length - 1)));
+        const computedPoints = cumulativeCounts.map((value, i) => {
+          const x = padding + (i * ((width - 2 * padding) / currentHour));
           const y = height - padding - ((value / maxValue) * (height - 2 * padding));
-          return { x, y, time, value };
+          return {
+            x,
+            y,
+            time: `${i}:00`,
+            value,
+          };
         });
 
         setPoints(computedPoints);
-      } catch (error) {
-        console.error('Error loading points:', error);
+      } catch (err) {
+        console.error('Error generating hourly points:', err);
       } finally {
         setIsLoading(false);
       }
@@ -277,82 +368,85 @@ const HomeScreen = () => {
     loadPoints();
   }, [puffTrigger, onPuffCountUpdate]);
 
-  if (isLoading || points.length === 0) {
-    return null;
-  }
 
-  const maxValue = Math.max(...points.map(p => p.value), 1);
-  const padding = basePadding + maxLabelWidth;
+    if (isLoading || points.length === 0) {
+      return null;
+    }
 
-  const linePath = getSmoothPath(points);
-  const shadowPath = getShadowPath(points, height, padding);
+    const maxValue = Math.max(...points.map(p => p.value), 1);
+    const padding = basePadding + maxLabelWidth;
 
-  return (
-    <View style={[styles.chartContainer, { paddingHorizontal: padding }]}>
-      <Svg height={height} width={width}>
-        <Rect x="0" y="0" width={width} height={height} fill="#1c1c1c" rx="10" />
-        {[height / 2, height - padding].map((y, i) => (
-          <Line
-            key={`hline-${i}`}
-            x1={padding}
-            y1={y}
-            x2={width - padding}
-            y2={y}
-            stroke="#404040"
-            strokeWidth="0.5"
-            strokeDasharray="4"
-          />
-        ))}
-        <Path d={shadowPath} fill="rgba(255, 0, 0, 0.3)" stroke="none" />
-        <Path d={linePath} fill="none" stroke="#FF3333" strokeWidth="2" />
-        {points.map((point, i) => (
-          <Fragment key={`${point.time}-${i}`}>
-            <Circle cx={point.x} cy={point.y} r="3" fill="#FF3333" />
-            {point.value > 0 && (
-              <SvgText
-                x={point.x}
-                y={point.y - 10}
-                fill="#fff"
-                fontSize="10"
-                textAnchor="middle"
+    const linePath = getSmoothPath(points);
+    const shadowPath = getShadowPath(points, height, padding);
+
+    return (
+      <View style={[styles.chartContainer, { paddingHorizontal: padding }]}>
+        <Svg height={height} width={width}>
+          <Rect x="0" y="0" width={width} height={height} fill="#161618" rx="10" />
+          <Path d={shadowPath} fill="rgba(229, 0, 0, 0.3)" stroke="none" />
+          <Path d={linePath} fill="none" stroke="#e50000" strokeWidth="2" />
+          {[maxValue / 2, maxValue].map((val, i) => {
+            const y = height - padding - (val / maxValue) * (height - 2 * padding);
+            const firstX = points[0]?.x || padding;
+            const lastX = points[points.length - 1]?.x || width - padding;
+            return (
+              <Fragment key={`axis-${i}`}>
+                <Line
+                  x1={firstX}        // ✅ align with red line start
+                  y1={y}
+                  x2={lastX}         // ✅ align with red line end
+                  y2={y}
+                  stroke="#FFFFFF"
+                  strokeWidth="1"
+                  strokeOpacity={0.6}
+                />
+                <SvgText
+                  x={firstX - 5}
+                  y={y}
+                  fill="#FFFFFF"
+                  fontSize="12"
+                  textAnchor="end"
+                  dy={3}
+                >
+                  {String(Math.round(val))}
+                </SvgText>
+              </Fragment>
+            );
+          })}
+        </Svg>
+        <View style={styles.chartLabels}>
+          {points.map((p, i) => {
+            const hour = parseInt(p.time.split(':')[0], 10);
+            const labelTime = (() => {
+              if (hour === 0) return '12 AM';
+              if (hour === 6) return '6 AM';
+              if (hour === 12) return '12 PM';
+              if (hour === 18) return '6 PM';
+              if (hour === 23) return '11 PM';
+
+              const currentHour = new Date().getHours();
+              if (hour === currentHour && hour !== 23 && ![0, 6, 12, 18].includes(hour)) {
+                const suffix = hour < 12 ? 'AM' : 'PM';
+                const hour12 = hour % 12 || 12;
+                return `${hour12} ${suffix}`;
+              }
+
+              return null;
+            })();
+
+            return labelTime ? (
+              <Text
+                key={`label-${i}`}
+                style={[styles.chartLabel, { left: p.x - padding - 25, position: 'absolute' }]}
               >
-                {String(point.value)} {/* Ensure text is a string */}
-              </SvgText>
-            )}
-          </Fragment>
-        ))}
-        {[0, maxValue / 2, maxValue].map((val, i) => {
-          const y = height - padding - (val / maxValue) * (height - 2 * padding);
-          return (
-            <Fragment key={`axis-${i}`}>
-              <Line x1={0} y1={y} x2={width} y2={y} stroke="#404040" strokeWidth="1" strokeDasharray="5,5" />
-              <SvgText
-                x={padding - 5}
-                y={y}
-                fill="#fff"
-                fontSize="12"
-                textAnchor="end"
-                dy={3}
-              >
-                {String(Math.round(val))} {/* Ensure text is a string */}
-              </SvgText>
-            </Fragment>
-          );
-        })}
-      </Svg>
-      <View style={styles.chartLabels}>
-        {points.map((p, i) => (
-          <Text
-            key={`label-${i}`}
-            style={[styles.chartLabel, { left: p.x - padding - 25, position: 'absolute' }]}
-          >
-            {p.time} {/* Already wrapped in <Text> */}
-          </Text>
-        ))}
+                {labelTime}
+              </Text>
+            ) : null;
+          })}
+        </View>
       </View>
-    </View>
-  );
-};
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -372,10 +466,10 @@ const HomeScreen = () => {
       </TouchableOpacity>
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>Usage today</Text>
-        <SimpleChart puffTrigger={puffTrigger} onPuffCountUpdate={handlePuffCountUpdate} />
+        <SimpleChart puffTrigger={puffTrigger} onPuffCountUpdate={handlePuffCountUpdate} styles={styles} />
       </View>
       <TouchableOpacity style={styles.puffButton} onPress={handlePuff}>
-        <Ionicons name="add" size={24} color="#FFF" />
+        <Ionicons name="add" size={24} color="#fff" />
         <Text style={styles.puffButtonText}>PUFF</Text>
       </TouchableOpacity>
       <Modal
@@ -418,7 +512,7 @@ const HomeScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles: AppStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0C0C0C',
@@ -438,7 +532,7 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: '#FFF',
+    backgroundColor: '#212124',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
@@ -450,20 +544,20 @@ const styles = StyleSheet.create({
   counterText: {
     fontSize: 60,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#ffffff',
   },
   counterLabel: {
     fontSize: 20,
-    color: '#888',
+    color: '#ffffff',
   },
   nicotineText: {
     fontSize: 24,
-    color: '#FF3333',
+    color: `rgba(229, 0, 0, 1)`,
     marginTop: 10,
   },
   nicotineLabel: {
     fontSize: 16,
-    color: '#888',
+    color: '#ffffff',
   },
   chartSection: {
     width: '90%',
@@ -472,8 +566,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#000000',
+    color: '#FFFFFF',
     marginBottom: 10,
+    textAlign: 'center',
   },
   chartContainer: {
     height: 150,
@@ -490,7 +585,7 @@ const styles = StyleSheet.create({
   },
   chartLabel: {
     fontSize: 12,
-    color: '#666',
+    color: '#ffffff',
     fontWeight: '500',
     textAlign: 'center',
     transform: [{ translateX: '-50%' }],
@@ -499,7 +594,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF3333',
+    backgroundColor: '#e50000',
     paddingVertical: 20,
     paddingHorizontal: 50,
     marginTop: 30,
@@ -576,12 +671,6 @@ const styles = StyleSheet.create({
   },
   freeText: {
     color: '#FFFFFF',
-  },
-  decorationLine: {
-    height: 1,
-    width: '80%',
-    backgroundColor: '#E0E0E0',
-    marginVertical: 10,
   },
 });
 

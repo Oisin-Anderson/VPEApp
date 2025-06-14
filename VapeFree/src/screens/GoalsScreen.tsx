@@ -4,6 +4,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { CountdownCircleTimer } from 'react-native-countdown-circle-timer';
 import { LineChart } from 'react-native-chart-kit';
 import { usePuff } from '../context/PuffContext';
+import { ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Explicitly define the render function type
@@ -24,10 +25,6 @@ const QuitPlanApp = () => {
   const [puffCount, setPuffCount] = useState('');
   const [quitDateStored, setQuitDateStored] = useState(false);
   const [puffsToday, setPuffToday] = useState(0);
-  const [dayKey, setDayKey] = useState(0);
-  const [hourKey, setHourKey] = useState(0);
-  const [minuteKey, setMinuteKey] = useState(0);
-  const [secondKey, setSecondKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
 
   useEffect(() => {
@@ -48,7 +45,6 @@ const QuitPlanApp = () => {
       const updateCountdown = () => {
         const now = new Date();
         const diff = targetDate.getTime() - now.getTime();
-        console.log('Countdown diff:', diff, 'timeLeft:', timeLeft); // Debug log
         if (diff > 0) {
           setTimeLeft(Math.floor(diff / 1000));
         } else {
@@ -60,6 +56,54 @@ const QuitPlanApp = () => {
       return () => clearInterval(interval);
     }
   }, [quitDateStored, timeLeft, targetDate]);
+
+  const [puffHistoryData, setPuffHistoryData] = useState<number[]>([]);
+
+  useEffect(() => {
+    const loadPuffData = async () => {
+    try {
+      const planData = await AsyncStorage.getItem('quitPlanData');
+      if (!planData) return;
+
+      const { targetDate } = JSON.parse(planData);
+      const endDate = new Date(targetDate);
+
+      // Calculate quit start date:
+      const totalDays = Math.ceil((endDate.getTime() - Date.now()) / 86400000) + 1;
+      const startDate = new Date(endDate);
+      startDate.setDate(endDate.getDate() - (totalDays - 1));
+      
+
+      const newData: number[] = [];
+
+      for (let i = 0; i < totalDays; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+
+        const json = await AsyncStorage.getItem(`puffTimes-${dateStr}`);
+        if (json) {
+          try {
+            const entries = JSON.parse(json);
+            newData.push(Array.isArray(entries) ? entries.length : 0);
+          } catch {
+            newData.push(0);
+          }
+        } else {
+          newData.push(0);
+        }
+      }
+
+      setPuffHistoryData(newData);
+    } catch (err) {
+      console.warn('Error loading puff history for graph:', err);
+    }
+  };
+
+    if (quitDateStored && timeLeft !== null) {
+      loadPuffData();
+    }
+  }, [targetDate, timeLeft, quitDateStored]);
 
   useEffect(() => {
     const validPuffCount = typeof homePuffCount === 'number' && !isNaN(homePuffCount) ? homePuffCount : 0;
@@ -112,6 +156,8 @@ const QuitPlanApp = () => {
     setShowSecondModal(false);
     setQuitDateStored(false);
     setPuffCount('');
+    setTargetDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)); // Optional: reset to 30 days ahead
+    setTimeLeft(null); // 🧼 Reset the timer countdown
   };
 
 
@@ -167,8 +213,17 @@ const QuitPlanApp = () => {
   };
 
   const chartWidth = 350;
-  const totalDays = timeLeft !== null ? Math.max(1, Math.ceil(timeLeft / 86400) + 1) : 1;
-  const puffCountNum = puffCount ? parseInt(puffCount, 10) : 0;
+  const totalDays = useMemo(() => {
+    const now = new Date();
+    const msDiff = targetDate.getTime() - now.getTime();
+    return Math.max(1, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+  }, [targetDate]);
+  const puffCountNum = useMemo(() => {
+    const n = parseInt(puffCount, 10);
+    return isNaN(n) ? 0 : n;
+  }, [puffCount]);
+
+  
   const puffLimitData = Array.from({ length: totalDays }, (_, i) => {
     const t = i / (totalDays - 1); // goes from 0 to 1
     const eased = 1 - Math.pow(t, 2); // quadratic easing (slow start)
@@ -177,25 +232,22 @@ const QuitPlanApp = () => {
 
   const todayLimit = puffLimitData[0] ?? 0;
 
-  const numPoints = 10;
-  const labels = Array.from({ length: numPoints }, (_, i) => {
-    const index = Math.floor((i * (totalDays - 1)) / (numPoints - 1));
-    return index.toString();
-  });
-  const sampledPuffLimitData = useMemo(() => {
+  /*const sampledPuffLimitData = useMemo(() => {
     return Array.from({ length: numPoints }, (_, i) => {
       const index = Math.floor((i * (totalDays - 1)) / (numPoints - 1));
       const val = puffLimitData[index];
-      console.log('sampledPuffLimitData', sampledPuffLimitData);
       return isNaN(val) ? 0 : val;
     });
-  }, [totalDays, puffLimitData]);
+  }, [totalDays, puffLimitData]);*/
 
-  const sampledPuffsEnteredData = useMemo(() => {
-    return Array.from({ length: numPoints }, (_, i) => {
-      return i === 0 ? puffsToday : 0; // ✅ Avoid NaN or null
-    });
-  }, [puffsToday]);
+  const puffEnteredData = useMemo(() => {
+    const padded = puffHistoryData.length === totalDays
+      ? puffHistoryData
+      : Array(totalDays).fill(0).map((_, i) => puffHistoryData[i] ?? 0);
+
+    return padded; // reverse so today is Day 30, then 29, 28, ...
+  }, [puffHistoryData, totalDays]);
+
 
   const handleTimerReset = useCallback((shouldReset: boolean, setKey: React.Dispatch<React.SetStateAction<number>>) => {
     if (shouldReset) {
@@ -209,11 +261,44 @@ const QuitPlanApp = () => {
 
   const renderTimers = timeLeft !== null && !isNaN(timeLeft) && timeLeft > 0 && !isLoading;
 
+  const graphDataReady =
+  totalDays > 0 &&
+  puffLimitData.length === totalDays &&
+  puffEnteredData.length === totalDays &&
+  puffLimitData.every(n => typeof n === 'number' && !isNaN(n)) &&
+  puffEnteredData.every(n => typeof n === 'number' && !isNaN(n));
+
+  const labelCount = 7;
+  const labelStep = Math.floor(totalDays / (labelCount - 1));
+
+  // Generate labels like [30, 25, 20, ..., 5]
+  let labelValues = Array.from({ length: labelCount - 1 }, (_, i) =>
+    totalDays - i * labelStep
+  );
+
+  // Add Day 1 instead of Day 0
+  if (!labelValues.includes(1)) {
+    labelValues.push(1);
+  }
+
+  // Remove duplicates and sort descending to ascending for alignment
+  labelValues = [...new Set(labelValues)].sort((a, b) => b - a);
+
+  // Build full labels array (1 label per graph point)
+  const labels = Array.from({ length: totalDays }, (_, i) => {
+    const dayLeft = totalDays - i; // index 0 = Day 30
+    return labelValues.includes(dayLeft) ? dayLeft.toString() : '';
+  });
+
+
+
+
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text>Limit today: {todayLimit} puffs</Text>
-        <Text>Puffs today: {puffsToday} puffs</Text>
+        <Text style={{color: `rgba(0, 255, 0, 1)`}}>Limit today: {todayLimit} puffs</Text>
+        <Text style={{color: `rgba(255, 0, 0, 1)`}}>Puffs today: {puffsToday} puffs</Text>
       </View>
       <TouchableOpacity style={styles.nextButton} onPress={resetData}>
         <Text style={styles.nextButtonText}>Reset Plan</Text>
@@ -221,80 +306,22 @@ const QuitPlanApp = () => {
       <View style={styles.timerContainer}>
         <Text style={styles.timerTitle}>Countdown Timer</Text>
         {renderTimers ? (
-          <View style={styles.timerRow}>
-            <View style={styles.timerCircle}>
-              <CountdownCircleTimer
-                key={dayKey}
-                isPlaying
-                duration={days * 86400}
-                initialRemainingTime={days * 86400}
-                colors={['#004777', '#F7B801', '#A30000']}
-                colorsTime={[24, 12, 0]}
-                size={60}
-                onComplete={() => {
-                  setDayKey(prev => prev + 1);  // 🔁 Reset timer key to restart animation
-                  return { shouldRepeat: timeLeft > 0, delay: 0 }; // ✅ Optional delay before repeat
-                }}
-              >
-                {() => <Text style={styles.timerText}>{days}</Text>}
-              </CountdownCircleTimer>
-              <Text style={styles.timerLabel}>day</Text>
+          <View style={styles.cardRow}>
+            <View style={styles.timerCard}>
+              <Text style={styles.cardNumber}>{days}</Text>
+              <Text style={styles.cardLabel}>Days</Text>
             </View>
-            <View style={styles.timerCircle}>
-              <CountdownCircleTimer
-                key={hourKey}
-                isPlaying
-                duration={86400}
-                initialRemainingTime={86400}
-                colors={['#004777', '#F7B801', '#A30000']}
-                colorsTime={[24, 12, 0]}
-                size={60}
-                
-                onComplete={() => {
-                  setHourKey(prev => prev + 1);  // 🔁 Reset timer key to restart animation
-                  return { shouldRepeat: timeLeft > 0, delay: 0 }; // ✅ Optional delay before repeat
-                }}
-              >
-                {() => <Text style={styles.timerText}>{hours}</Text>}
-              </CountdownCircleTimer>
-              <Text style={styles.timerLabel}>hr</Text>
+            <View style={styles.timerCard}>
+              <Text style={styles.cardNumber}>{hours}</Text>
+              <Text style={styles.cardLabel}>Hours</Text>
             </View>
-            <View style={styles.timerCircle}>
-              <CountdownCircleTimer
-                key={minuteKey}
-                isPlaying
-                duration={3600}
-                initialRemainingTime={3600}
-                colors={['#004777', '#F7B801', '#A30000']}
-                colorsTime={[60, 30, 0]}
-                size={60}
-                
-                onComplete={() => {
-                  setMinuteKey(prev => prev + 1);  // 🔁 Reset timer key to restart animation
-                  return { shouldRepeat: timeLeft > 0, delay: 0 }; // ✅ Optional delay before repeat
-                }}
-              >
-                {() => <Text style={styles.timerText}>{minutes}</Text>}
-              </CountdownCircleTimer>
-              <Text style={styles.timerLabel}>min</Text>
+            <View style={styles.timerCard}>
+              <Text style={styles.cardNumber}>{minutes}</Text>
+              <Text style={styles.cardLabel}>Minutes</Text>
             </View>
-            <View style={styles.timerCircle}>
-              <CountdownCircleTimer
-                key={secondKey}
-                isPlaying
-                duration={60}
-                initialRemainingTime={60}
-                colors={['#004777', '#F7B801', '#A30000']}
-                colorsTime={[60, 30, 0]}
-                size={60}
-                onComplete={() => {
-                  setSecondKey(prev => prev + 1);  // 🔁 Reset timer key to restart animation
-                  return { shouldRepeat: timeLeft > 0, delay: 0 }; // ✅ Optional delay before repeat
-                }}
-              >
-                {() => <Text style={styles.timerText}>{seconds}</Text>}
-              </CountdownCircleTimer>
-              <Text style={styles.timerLabel}>sec</Text>
+            <View style={styles.timerCard}>
+              <Text style={styles.cardNumber}>{seconds}</Text>
+              <Text style={styles.cardLabel}>Seconds</Text>
             </View>
           </View>
         ) : (
@@ -303,20 +330,21 @@ const QuitPlanApp = () => {
       </View>
 
       <View style={styles.graphContainer}>
-        <Text style={styles.graphTitle}>Puff Reduction Plan</Text>
-        {totalDays > 0 && sampledPuffLimitData.length === numPoints && sampledPuffsEnteredData.length === numPoints ? (
+       <Text style={styles.graphTitle}>Puff Reduction Plan</Text>
+        {graphDataReady ? (
+          
           <LineChart
             data={{
               labels: labels,
               datasets: [
                 {
-                  data: sampledPuffLimitData,
-                  color: (opacity = 1) => `rgba(255, 0, 0, ${opacity})`,
+                  data: puffLimitData,
+                  color: (opacity = 1) => `rgba(0, 255, 0, 1)`,
                   strokeWidth: 2,
                 },
                 {
-                  data: sampledPuffsEnteredData,
-                  color: (opacity = 1) => `rgba(0, 0, 255, ${opacity})`,
+                  data: puffEnteredData,
+                  color: (opacity = 1) => `rgba(255, 0, 0, 1)`,
                   strokeWidth: 2,
                 },
               ],
@@ -324,22 +352,27 @@ const QuitPlanApp = () => {
             width={chartWidth}
             height={220}
             yAxisLabel=""
+            withDots={false}
+            withInnerLines={false}  // removes inside grid lines
+            withOuterLines={false}  // removes outer edge lines
+            //withDots={false} // removes bullet points from lines
             chartConfig={{
-              backgroundColor: '#ffffff',
-              backgroundGradientFrom: '#ffffff',
-              backgroundGradientTo: '#ffffff',
+              backgroundColor: '#030303',
+              backgroundGradientFrom: '#000000',
+              backgroundGradientTo: '#010101',
               decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+              color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
               style: {
                 borderRadius: 16,
               },
             }}
-            //bezier
             style={{
               marginVertical: 8,
               borderRadius: 16,
             }}
           />
+
+
         ) : (
           <Text style={styles.errorText}>Loading graph data...</Text>
         )}
@@ -433,32 +466,61 @@ const QuitPlanApp = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f5f5f5', justifyContent: 'center' },
-  header: { alignItems: 'center', marginBottom: 20 },
+  container: { flex: 1, padding: 20, backgroundColor: '#000000', justifyContent: 'center', color: '#ffffff' },
+  header: { alignItems: 'center', marginBottom: 20, color: '#ffffff' },
   timerContainer: { alignItems: 'center', marginBottom: 20 },
-  timerTitle: { fontSize: 18, marginBottom: 10 },
+  timerTitle: { fontSize: 18, marginBottom: 10, color: '#ffffff' },
   timerRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
   timerCircle: { alignItems: 'center' },
-  timerText: { fontSize: 14, fontWeight: 'bold' },
+  timerText: { fontSize: 14, fontWeight: 'bold', color: '#ffffff' },
   timerLabel: { fontSize: 10, color: '#666' },
   modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: { backgroundColor: 'white', padding: 20, borderRadius: 10, width: '80%' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
-  modalText: { fontSize: 14, marginBottom: 10 },
-  modalSubText: { fontSize: 12, color: '#666', marginBottom: 20 },
-  dateLabel: { fontSize: 16, marginBottom: 10 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10, color: '#ffffff' },
+  modalText: { fontSize: 14, marginBottom: 10, color: '#ffffff' },
+  modalSubText: { fontSize: 12, color: '#ffffff', marginBottom: 20 },
+  dateLabel: { fontSize: 16, marginBottom: 10, color: '#ffffff' },
   dateInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 20 },
-  orText: { textAlign: 'center', marginVertical: 10 },
+  orText: { textAlign: 'center', marginVertical: 10, color: '#ffffff' },
   quickOptions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   optionButton: { padding: 10, backgroundColor: '#e0e0e0', borderRadius: 5 },
-  nextButton: { backgroundColor: '#007AFF', padding: 15, borderRadius: 5, alignItems: 'center', marginTop: 20 },
-  puffLabel: { fontSize: 16, marginBottom: 10 },
+  nextButton: { backgroundColor: `rgba(0, 255, 0, 1)`, padding: 15, borderRadius: 5, alignItems: 'center', marginTop: 20 },
+  puffLabel: { fontSize: 16, marginBottom: 10, color: '#ffffff' },
   puffInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 20, textAlign: 'center' },
-  recommendText: { fontSize: 12, color: '#666', marginBottom: 20 },
+  recommendText: { fontSize: 12, color: '#ffffff', marginBottom: 20 },
   graphContainer: { marginVertical: 20, alignItems: 'center' },
-  graphTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
+  graphTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#ffffff' },
   errorText: { color: 'red', textAlign: 'center' },
-  nextButtonText: { color: 'white', fontWeight: 'bold', textAlign: 'center', }
+  nextButtonText: { color: 'black', fontWeight: 'bold', textAlign: 'center', },
+  cardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 10,
+  },
+  timerCard: {
+    alignItems: 'center',
+    backgroundColor: '#020202',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    width: 70,
+  },
+  cardNumber: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  cardLabel: {
+    fontSize: 12,
+    color: '#ffffff',
+    marginTop: 5,
+  },
 });
 
 export default QuitPlanApp;
