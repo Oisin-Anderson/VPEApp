@@ -41,8 +41,8 @@ const AppNavigator = () => {
           elevation: 0,                  // ✅ removes shadow on Android
           shadowOpacity: 0,       
         },
-        tabBarActiveTintColor: `rgba(236, 0, 0, 1)`,
-        tabBarInactiveTintColor: `rgba(210, 0, 0, 1)`,
+        tabBarActiveTintColor: `rgba(255, 255, 255, 1)`,
+        tabBarInactiveTintColor: `rgba(210, 210, 210, 1)`,
         headerShown: false, // Disable the header for all screens
       })}
       initialRouteName="Home"

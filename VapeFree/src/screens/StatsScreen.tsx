@@ -14,12 +14,51 @@ const StatsScreen = () => {
   const [viewPeriod, setViewPeriod] = useState<'day' | 'week' | 'month'>('day');
   const [puffHistory, setPuffHistory] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const periodPuffCount = useMemo(() => {
+    return puffHistory.reduce((sum, val) => sum + val, 0);
+  }, [puffHistory]);
   const screenWidth = Dimensions.get('window').width - 40;
   const [totalPuffsRecorded, setTotalPuffsRecorded] = useState(0);
+  const formatDate = (date: Date) =>
+  new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date); // e.g., "Jun 14, 2025"
+
+  const isYesterday = (date: Date) => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    return (
+      date.getFullYear() === yesterday.getFullYear() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getDate() === yesterday.getDate()
+    );
+  };
+
+
 
 
   // Use a stable date reference, updated only on mount or when needed
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  const [viewStartDate, setViewStartDate] = useState<Date>(() => {
+    const today = new Date();
+    today.setDate(today.getDate() - 1);
+    if (isNaN(today.getTime())) {
+      console.warn('Invalid date fallback triggered');
+      return new Date('2024-01-01');
+    }
+    return today;
+  });
+
+
+  const [firstLoginDate, setFirstLoginDate] = useState<Date>(() => {
+    // Replace this with your actual value from AsyncStorage if needed
+    return new Date('2024-01-01'); // first login fallback
+  });
+
 
   const loadPuffHistory = useCallback(async () => {
     setIsLoading(true);
@@ -28,20 +67,20 @@ const StatsScreen = () => {
       const datesToCheck = [];
 
       if (viewPeriod === 'day') {
-        const yesterday = new Date(currentDate);
-        yesterday.setDate(currentDate.getDate() - 1);
+        const yesterday = new Date(viewStartDate);
+        yesterday.setDate(viewStartDate.getDate() - 1);
         datesToCheck.push(yesterday.toISOString().split('T')[0]);
       } else if (viewPeriod === 'week') {
         for (let i = 6; i >= 0; i--) {
-          const d = new Date(currentDate);
-          d.setDate(currentDate.getDate() - i);
+          const d = new Date(viewStartDate);
+          d.setDate(viewStartDate.getDate() - 6 + i); // includes today if viewStartDate is today
           const dateStr = d.toISOString().split('T')[0];
           datesToCheck.push(dateStr);
         }
       } else if (viewPeriod === 'month') {
         for (let i = 29; i >= 0; i--) {
-          const d = new Date(currentDate);
-          d.setDate(currentDate.getDate() - i);
+          const d = new Date(viewStartDate);
+          d.setDate(viewStartDate.getDate() - 29 + i);
           datesToCheck.push(d.toISOString().split('T')[0]);
         }
       }
@@ -65,8 +104,8 @@ const StatsScreen = () => {
 
       if (viewPeriod === 'day') {
         history = Array(24).fill(0);
-        const yesterday = new Date(currentDate);
-        yesterday.setDate(currentDate.getDate() - 1); // Wednesday, June 11, 2025
+        const yesterday = new Date(viewStartDate);
+        yesterday.setDate(viewStartDate.getDate() - 1); // Wednesday, June 11, 2025
         const yesterdayStr = yesterday.toISOString().split('T')[0];
         puffEntries.forEach(entry => {
           const date = new Date(entry.time);
@@ -76,8 +115,8 @@ const StatsScreen = () => {
         });
       } else if (viewPeriod === 'week') {
         history = Array(7).fill(0);
-        const startDate = new Date(currentDate);
-        startDate.setDate(currentDate.getDate() - 6); // Friday, June 6, 2025 (7 days ago from June 12)
+        const startDate = new Date(viewStartDate);
+        startDate.setDate(viewStartDate.getDate() - 6); // Friday, June 6, 2025 (7 days ago from June 12)
         for (let i = 0; i < 7; i++) {
           const date = new Date(startDate);
           date.setDate(startDate.getDate() + i);
@@ -89,8 +128,8 @@ const StatsScreen = () => {
         }
       } else if (viewPeriod === 'month') {
         history = Array(30).fill(0); // 30 days ending on currentDate
-        const startDate = new Date(currentDate);
-        startDate.setDate(currentDate.getDate() - 29); // 30 days ago from currentDate
+        const startDate = new Date(viewStartDate);
+        startDate.setDate(viewStartDate.getDate() - 29); // 30 days ago from currentDate
         for (let i = 0; i < 30; i++) {
           const date = new Date(startDate);
           date.setDate(startDate.getDate() + i);
@@ -110,7 +149,7 @@ const StatsScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [viewPeriod, currentDate]); // Only re-run when viewPeriod or currentDate changes
+  }, [viewPeriod, viewStartDate]); // Only re-run when viewPeriod or currentDate changes
 
   useEffect(() => {
     loadPuffHistory();
@@ -148,7 +187,7 @@ const StatsScreen = () => {
 
   useEffect(() => {
     const syncPuffHistory = async () => {
-    const todayStr = currentDate.toISOString().split('T')[0];
+    const todayStr = viewStartDate.toISOString().split('T')[0];
     const savedTodayPuffTimes = await AsyncStorage.getItem(`puffTimes-${todayStr}`);
     const puffEntries: PuffEntry[] = savedTodayPuffTimes ? JSON.parse(savedTodayPuffTimes) : [];
 
@@ -164,110 +203,160 @@ const StatsScreen = () => {
     if (puffCount > 0) {
       syncPuffHistory();
     }
-  }, [puffCount, viewPeriod, setPuffCount, currentDate]);
+  }, [puffCount, viewPeriod, setPuffCount, viewStartDate]);
 
   const labels = useMemo(() => {
-  if (viewPeriod === 'day') {
-    return [0, 4, 8, 12, 16, 20].map(i => i.toString());
-  }
-  if (viewPeriod === 'week') {
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const labels = [];
-
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(currentDate);
-      d.setDate(currentDate.getDate() - i);
-      labels.push(dayNames[d.getDay()]);
+    if (viewPeriod === 'day') {
+      // 24-hour chart: label every 4 hours (0, 4, 8, ..., 20), empty in between
+      return Array.from({ length: 24 }, (_, i) => (i % 4 === 0 ? i.toString() : ''));
     }
 
-    return labels;
-  }
-  // Adjust month labels to start from today and work backwards in 5-day decrements
-  const startDate = new Date(currentDate);
-  startDate.setDate(currentDate.getDate() - 29); // Start 30 days ago (May 14, 2025 for June 12)
-  const labels = [];
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(currentDate);
-    date.setDate(currentDate.getDate() - (i * 5)); // Work backwards 5 days at a time
-    const day = date.getDate();
-    if (date >= startDate) { // Ensure within 30-day range
-      labels.unshift(day.toString()); // Add to start of array
+    if (viewPeriod === 'week') {
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(viewStartDate);
+        d.setDate(viewStartDate.getDate() - 6 + i); // start 6 days ago
+        return dayNames[d.getDay()];
+      });
     }
-  }
-  // Ensure we have 7 labels, filling backwards if needed
-  while (labels.length < 7 && parseInt(labels[0]) > startDate.getDate()) {
-    const date = new Date(currentDate);
-    date.setDate(parseInt(labels[0]) - 5);
-    labels.unshift(date.getDate().toString());
-  }
-  return labels;
-}, [viewPeriod, currentDate]);
+
+
+    if (viewPeriod === 'month') {
+      return Array.from({ length: 30 }, (_, i) => {
+        const date = new Date(viewStartDate);
+        date.setDate(viewStartDate.getDate() - 29 + i);
+        return i % 5 === 0 ? date.getDate().toString() : '';
+      });
+    }
+
+
+    return []; // fallback
+  }, [viewPeriod, viewStartDate]);
+
 
   const handlePeriodChange = (period: 'day' | 'week' | 'month') => {
     setViewPeriod(period);
+
+    const today = new Date();
+    if (period === 'day') {
+      today.setDate(today.getDate() - 1); // still show yesterday for day view
+    }
+
+    setViewStartDate(today);
   };
 
-  // Update currentDate daily (e.g., at midnight)
+
+
+  // Update viewStartDate daily (e.g., at midnight)
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
-      if (now.getDate() !== currentDate.getDate()) {
-        setCurrentDate(now);
-      }
+      
     }, 60000); // Check every minute
     return () => clearInterval(interval);
-  }, [currentDate]);
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
+  }, [viewStartDate]);
 
   return (
     <ScrollView style={styles.container}>
-      <View style={{ alignItems: 'center', marginBottom: 10 }}>
-        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>
-          Total Puffs Logged: {totalPuffsRecorded}
-        </Text>
+      <View style={styles.totalPuffCircleContainer}>
+        <View style={styles.totalPuffCircle}>
+          <Text style={styles.totalPuffNumber}>{totalPuffsRecorded}</Text>
+          <Text style={styles.totalPuffLabel}>All time</Text>
+        </View>
       </View>
       <View style={styles.chartContainer}>
+        <View style={{ position: 'relative' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+          <TouchableOpacity
+            onPress={() => {
+              const newDate = new Date(viewStartDate);
+              const offset = viewPeriod === 'day' ? -1 : viewPeriod === 'week' ? -7 : -30;
+              newDate.setDate(newDate.getDate() + offset);
+              if (newDate >= firstLoginDate) setViewStartDate(newDate);
+            }}
+            style={{ marginHorizontal: 20 }}
+          >
+            <Text style={{ fontSize: 24, color: '#ffffff' }}>←</Text>
+          </TouchableOpacity>
+
+          <Text style={{ color: '#ffffff', fontSize: 16 }}>
+            {viewPeriod === 'day' && (isYesterday(viewStartDate) ? 'Yesterday' : formatDate(viewStartDate))}
+            {viewPeriod === 'week' &&
+              `${formatDate(new Date(viewStartDate.getTime() - 6 * 86400000))} - ${formatDate(viewStartDate)}`}
+            {viewPeriod === 'month' &&
+              `${formatDate(new Date(viewStartDate.getTime() - 29 * 86400000))} - ${formatDate(viewStartDate)}`}
+          </Text>
+
+          <TouchableOpacity
+            disabled={(() => {
+              const today = new Date();
+              today.setDate(today.getDate() - 1); // yesterday
+              return viewStartDate >= today;
+            })()}
+            onPress={() => {
+              const newDate = new Date(viewStartDate);
+              const offset = viewPeriod === 'day' ? 1 : viewPeriod === 'week' ? 7 : 30;
+              newDate.setDate(newDate.getDate() + offset);
+              const yesterday = new Date();
+              yesterday.setDate(yesterday.getDate() - 1);
+              if (newDate <= yesterday) setViewStartDate(newDate);
+            }}
+            style={{ marginHorizontal: 20, opacity: (() => {
+              const today = new Date();
+              today.setDate(today.getDate() - 1);
+              return viewStartDate >= today ? 0.3 : 1;
+            })() }}
+          >
+            <Text style={{ fontSize: 24, color: '#ffffff' }}>→</Text>
+          </TouchableOpacity>
+        </View>
+        {puffHistory.length > 0 && puffHistory.length === labels.length && (
         <LineChart
           data={{
             labels: labels,
             datasets: [{
-              data: puffHistory,
-              withDots: viewPeriod === 'week'|| viewPeriod === 'day'|| viewPeriod === 'month' ? false : true, // Remove bullets only for week graph
+              data: puffHistory.map(v => (isFinite(v) ? v : 0)),
             }],
           }}
           width={screenWidth - 20} // Reduce width slightly to accommodate the shift
           height={220}
           bezier
           yAxisLabel=""
+          withDots={false}
           withHorizontalLines={viewPeriod === 'week'|| viewPeriod === 'day'|| viewPeriod === 'month' ? false : true} // Remove horizontal lines for week
           withVerticalLines={viewPeriod === 'week'|| viewPeriod === 'day'|| viewPeriod === 'month' ? false : true} // Remove vertical lines for week
           chartConfig={{
-            backgroundColor: '#ffffff',
-            backgroundGradientFrom: '#ffffff',
-            backgroundGradientTo: '#ffffff',
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(255, 0, 0, 1)`, // Solid red color with fixed opacity of 1
-            style: { borderRadius: 16 },
-          }}
+          backgroundColor: '#161618',
+          backgroundGradientFrom: '#161618',
+          backgroundGradientTo: '#161618',
+          decimalPlaces: 0,
+          color: (opacity = 1) => `rgba(255, 0, 0, 1)`, // white for labels and axes
+          labelColor: (opacity = 1) => `rgba(255, 255, 255, 1)`, // white labels
+          propsForBackgroundLines: {
+            stroke: '#ffffff', // faded white for grid lines (optional)
+          },
+          style: { borderRadius: 16 },
+        }}
+
           style={{ ...styles.chart, marginLeft: 10 }} // Merge styles into a single object
         />
+        )}
+        {isLoading && (
+          <View style={styles.chartOverlay}>
+            <ActivityIndicator size="small" color="#e50000" />
+          </View>
+        )}
+        </View>
       </View>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => handlePeriodChange('day')} style={[styles.periodButton, viewPeriod === 'day' && styles.activeButton]}>
-          <Text>Day</Text>
+        <TouchableOpacity disabled={isLoading} onPress={() => handlePeriodChange('day')} style={[styles.periodButton, viewPeriod === 'day' && styles.activeButton]}>
+          <Text style={styles.periodButtonText}>Day</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => handlePeriodChange('week')} style={[styles.periodButton, viewPeriod === 'week' && styles.activeButton]}>
-          <Text>Week</Text>
+        <TouchableOpacity disabled={isLoading} onPress={() => handlePeriodChange('week')} style={[styles.periodButton, viewPeriod === 'week' && styles.activeButton]}>
+          <Text style={styles.periodButtonText}>Week</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => handlePeriodChange('month')} style={[styles.periodButton, viewPeriod === 'month' && styles.activeButton]}>
-          <Text>Month</Text>
+        <TouchableOpacity disabled={isLoading} onPress={() => handlePeriodChange('month')} style={[styles.periodButton, viewPeriod === 'month' && styles.activeButton]}>
+          <Text style={styles.periodButtonText}>Month</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -275,13 +364,53 @@ const StatsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, paddingTop: 120, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, padding: 20, paddingTop: 80, backgroundColor: '#000000' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
-  periodButton: { padding: 10, borderWidth: 1, borderColor: '#ccc', borderRadius: 5 },
-  activeButton: { backgroundColor: '#007AFF', color: '#fff' },
+  periodButton: { padding: 10, borderWidth: 1, borderRadius: 5, borderColor: '#212124 '},
+  periodButtonText: {color: '#ffffff'},
+  activeButton: { backgroundColor: '#e50000', color: '#ffffff' },
   chartContainer: { alignItems: 'center' },
   chart: { marginVertical: 8, borderRadius: 16 },
+  totalPuffCircleContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  totalPuffCircle: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: '#212124',
+    borderWidth: 2,
+    borderColor: '#e50000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+
+  totalPuffNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#e50000',
+  },
+
+  totalPuffLabel: {
+    fontSize: 12,
+    color: '#ffffff',
+    marginTop: 4,
+  },
+  chartOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -10,
+    marginTop: -10,
+  },
 });
 
 export default StatsScreen;

@@ -423,7 +423,7 @@ const QuitPlanApp = () => {
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-              <Text style={styles.nextButton}><Text style={{ color: 'white', fontWeight: 'bold' }}>Next</Text></Text>
+              <Text style={{ color: 'white', fontWeight: 'bold' }}>Next</Text>
             </TouchableOpacity>
           </View>
         </View>
