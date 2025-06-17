@@ -318,7 +318,14 @@ const HomeScreen = () => {
     const fixedTimes = passedTimes.includes('12 PM') && currentHour === 12 ? [...passedTimes] : [...passedTimes, formatCurrentTime()];
 
     useEffect(() => {
-    const loadPoints = async () => {
+      const timeout = setTimeout(() => {
+        loadPoints();
+      }, 150); // wait for AsyncStorage to settle
+
+      return () => clearTimeout(timeout);
+    }, [puffTrigger]);
+
+  const loadPoints = async () => {
       setIsLoading(true);
       try {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -365,8 +372,6 @@ const HomeScreen = () => {
       }
     };
 
-    loadPoints();
-  }, [puffTrigger, onPuffCountUpdate]);
 
 
     if (isLoading || points.length === 0) {
@@ -452,8 +457,8 @@ const HomeScreen = () => {
     <View style={styles.container}>
       <View style={styles.titleContainer}>
         <Text style={styles.appTitle}>
-          <Text style={styles.vapeText}>Vape</Text>
-          <Text style={styles.freeText}>Free</Text>
+          <Text style={styles.freeText}>Puff</Text>
+          <Text style={styles.vapeText}>Daddy</Text>
         </Text>
       </View>
       <TouchableOpacity onPress={handleCirclePress} style={styles.counterContainer}>

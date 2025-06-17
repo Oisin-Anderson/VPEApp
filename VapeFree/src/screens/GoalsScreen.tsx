@@ -26,6 +26,8 @@ const QuitPlanApp = () => {
   const [quitDateStored, setQuitDateStored] = useState(false);
   const [puffsToday, setPuffToday] = useState(0);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [startDate, setStartDate] = useState<Date | null>(null);
+
 
   useEffect(() => {
     const now = new Date();
@@ -68,10 +70,9 @@ const QuitPlanApp = () => {
       const { targetDate } = JSON.parse(planData);
       const endDate = new Date(targetDate);
 
-      // Calculate quit start date:
-      const totalDays = Math.ceil((endDate.getTime() - Date.now()) / 86400000) + 1;
-      const startDate = new Date(endDate);
-      startDate.setDate(endDate.getDate() - (totalDays - 1));
+      if (!startDate) return;
+      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+
       
 
       const newData: number[] = [];
@@ -103,7 +104,7 @@ const QuitPlanApp = () => {
     if (quitDateStored && timeLeft !== null) {
       loadPuffData();
     }
-  }, [targetDate, timeLeft, quitDateStored]);
+  }, [targetDate, timeLeft, quitDateStored, startDate]);
 
   useEffect(() => {
     const validPuffCount = typeof homePuffCount === 'number' && !isNaN(homePuffCount) ? homePuffCount : 0;
@@ -127,19 +128,28 @@ const QuitPlanApp = () => {
         const json = await AsyncStorage.getItem('quitPlanData');
         if (json) {
           const data = JSON.parse(json);
+
           if (data.targetDate) {
             const parsedDate = new Date(data.targetDate);
             setTargetDate(parsedDate);
+
             const now = new Date();
             const diff = parsedDate.getTime() - now.getTime();
             setTimeLeft(diff > 0 ? Math.floor(diff / 1000) : 0);
           }
+
+          if (data.startDate) {
+            const parsedStart = new Date(data.startDate); // ✅ Load start date
+            setStartDate(parsedStart);
+          }
+
           if (data.puffCount !== undefined) {
             setPuffCount(data.puffCount.toString());
           }
+
           if (data.quitDateStored) {
             setQuitDateStored(true);
-            setShowModal(false); // hide intro modal if data exists
+            setShowModal(false);
           }
         }
       } catch (err) {
@@ -200,24 +210,23 @@ const QuitPlanApp = () => {
     setShowSecondModal(false);
     setQuitDateStored(true);
 
-    // ✅ Save data
-    try {
-      await AsyncStorage.setItem('quitPlanData', JSON.stringify({
-        puffCount: count,
-        targetDate: targetDate.toISOString(),
-        quitDateStored: true,
-      }));
-    } catch (error) {
-      console.error('Failed to save quit plan data:', error);
-    }
+    await AsyncStorage.setItem('quitPlanData', JSON.stringify({
+      puffCount: count,
+      targetDate: targetDate.toISOString(),
+      startDate: new Date().toISOString(), // ✅ Save start date
+      quitDateStored: true,
+    }));
+
   };
 
   const chartWidth = 350;
   const totalDays = useMemo(() => {
-    const now = new Date();
-    const msDiff = targetDate.getTime() - now.getTime();
-    return Math.max(1, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
-  }, [targetDate]);
+    if (!startDate || !targetDate) return 0;
+    const diff = targetDate.getTime() - startDate.getTime();
+    return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1);
+  }, [startDate, targetDate]);
+
+
   const puffCountNum = useMemo(() => {
     const n = parseInt(puffCount, 10);
     return isNaN(n) ? 0 : n;
@@ -226,19 +235,20 @@ const QuitPlanApp = () => {
   
   const puffLimitData = Array.from({ length: totalDays }, (_, i) => {
     const t = i / (totalDays - 1); // goes from 0 to 1
-    const eased = 1 - Math.pow(t, 2); // quadratic easing (slow start)
+    const eased = 1 - Math.pow(t, 2);
     return Math.round(eased * puffCountNum);
   });
 
-  const todayLimit = puffLimitData[0] ?? 0;
 
-  /*const sampledPuffLimitData = useMemo(() => {
-    return Array.from({ length: numPoints }, (_, i) => {
-      const index = Math.floor((i * (totalDays - 1)) / (numPoints - 1));
-      const val = puffLimitData[index];
-      return isNaN(val) ? 0 : val;
-    });
-  }, [totalDays, puffLimitData]);*/
+  const todayIndex = useMemo(() => {
+    if (!startDate) return 0;
+    const now = new Date();
+    const daysPassed = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.min(daysPassed, puffLimitData.length - 1);
+  }, [startDate, puffLimitData.length]);
+
+  const todayLimit = puffLimitData[todayIndex] ?? 0;
+
 
   const puffEnteredData = useMemo(() => {
     const padded = puffHistoryData.length === totalDays
@@ -272,37 +282,102 @@ const QuitPlanApp = () => {
   const labelStep = Math.floor(totalDays / (labelCount - 1));
 
   // Generate labels like [30, 25, 20, ..., 5]
+  // Generate label day values (e.g., 30, 25, ..., 1, 0)
   let labelValues = Array.from({ length: labelCount - 1 }, (_, i) =>
-    totalDays - i * labelStep
+    totalDays - 1 - i * labelStep
   );
 
-  // Add Day 1 instead of Day 0
-  if (!labelValues.includes(1)) {
-    labelValues.push(1);
+  // Always include Day 0
+  if (!labelValues.includes(0)) {
+    labelValues.push(0);
   }
 
-  // Remove duplicates and sort descending to ascending for alignment
   labelValues = [...new Set(labelValues)].sort((a, b) => b - a);
 
-  // Build full labels array (1 label per graph point)
   const labels = Array.from({ length: totalDays }, (_, i) => {
-    const dayLeft = totalDays - i; // index 0 = Day 30
+    const dayLeft = totalDays - 1 - i; // index 0 = highest day, end = 0
     return labelValues.includes(dayLeft) ? dayLeft.toString() : '';
   });
 
+
+
+  if (!quitDateStored) {
+    return (
+      <ScrollView contentContainerStyle={styles.onboardingContainer}>
+        <Text style={styles.modalTitle}>Start Your Quit Plan</Text>
+        <Text style={styles.modalText}>
+          The best way to quit is to set a goal and reduce slowly overtime. We've set it to 30 days but feel free to extend your quit date.
+        </Text>
+        <Text style={styles.modalSubText}>
+          Choose a realistic Quit Date and your current daily puff count.
+        </Text>
+
+        <Text style={styles.dateLabel}>Pick Your Quit Date</Text>
+        <Pressable onPress={() => setShowDatePicker(true)}>
+          <TextInput
+            style={styles.dateInput}
+            value={targetDate.toLocaleDateString()}
+            editable={false}
+          />
+        </Pressable>
+        {showDatePicker && (
+          <DateTimePicker
+            value={targetDate}
+            minimumDate={new Date()}
+            mode="date"
+            display="default"
+            onChange={onDateChange}
+          />
+        )}
+
+        <Text style={styles.orText}>Quick Options</Text>
+        <View style={styles.quickOptions}>
+          <TouchableOpacity style={styles.optionButton} onPress={() => addDays(30)}>
+            <Text>30 Days</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.optionButton} onPress={() => addDays(90)}>
+            <Text>90 Days</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.optionButton} onPress={() => addDays(365)}>
+            <Text>365 Days</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.puffLabel}>How many puffs do you take daily?</Text>
+        <TextInput
+          style={styles.puffInput}
+          value={puffCount}
+          onChangeText={setPuffCount}
+          keyboardType="numeric"
+          placeholder="Puffs"
+        />
+
+        <Text style={styles.recommendText}>
+          We recommend tracking your puffs for a day or two before entering here to get a better plan.
+        </Text>
+
+        <TouchableOpacity style={styles.nextButton} onPress={handleFinish}>
+          <Text style={styles.nextButtonText}>Generate My Quit Plan</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
 
 
 
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={{color: `rgba(0, 255, 0, 1)`}}>Limit today: {todayLimit} puffs</Text>
-        <Text style={{color: `rgba(255, 0, 0, 1)`}}>Puffs today: {puffsToday} puffs</Text>
+      <View style={styles.titleContainer}>
+        <Text style={styles.appTitle}>
+          <Text style={styles.freeText}>Puff</Text>
+          <Text style={styles.vapeText}>Daddy</Text>
+        </Text>
       </View>
-      <TouchableOpacity style={styles.nextButton} onPress={resetData}>
-        <Text style={styles.nextButtonText}>Reset Plan</Text>
-      </TouchableOpacity>
+      <View style={styles.header}>
+        <Text style={{color: `#0088cc`}}>Limit today: {todayLimit} puffs</Text>
+        <Text style={{color: `#E50000`}}>Puffs today: {puffsToday} puffs</Text>
+      </View>
       <View style={styles.timerContainer}>
         <Text style={styles.timerTitle}>Countdown Timer</Text>
         {renderTimers ? (
@@ -339,12 +414,12 @@ const QuitPlanApp = () => {
               datasets: [
                 {
                   data: puffLimitData,
-                  color: (opacity = 1) => `rgba(0, 255, 0, 1)`,
+                  color: (opacity = 1) => `#0088cc`,
                   strokeWidth: 2,
                 },
                 {
                   data: puffEnteredData,
-                  color: (opacity = 1) => `rgba(255, 0, 0, 1)`,
+                  color: (opacity = 1) => '#e50000',
                   strokeWidth: 2,
                 },
               ],
@@ -357,11 +432,12 @@ const QuitPlanApp = () => {
             withOuterLines={false}  // removes outer edge lines
             //withDots={false} // removes bullet points from lines
             chartConfig={{
-              backgroundColor: '#030303',
-              backgroundGradientFrom: '#000000',
-              backgroundGradientTo: '#010101',
+              backgroundColor: '#161618',
+              backgroundGradientFrom: '#161618',
+              backgroundGradientTo: '#161618',
               decimalPlaces: 0,
               color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+              labelColor: (opacity = 1) => `#ffffff`,  // Axis labels
               style: {
                 borderRadius: 16,
               },
@@ -378,95 +454,16 @@ const QuitPlanApp = () => {
         )}
       </View>
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showModal}
-        onRequestClose={() => setShowModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Set a Quit Date</Text>
-            <Text style={styles.modalText}>
-              This is the day you'll quit for good! Setting a date increases the likelihood you'll meet your goal.
-            </Text>
-            <Text style={styles.modalSubText}>
-              Choose a date that's realistic and achievable based on your current intake.
-            </Text>
-            <Text style={styles.dateLabel}>Choose your Quit Date</Text>
-            <Pressable onPress={() => setShowDatePicker(true)}>
-              <TextInput
-                style={styles.dateInput}
-                value={targetDate.toLocaleDateString()}
-                editable={false}
-              />
-            </Pressable>
-            {showDatePicker && (
-              <DateTimePicker
-                value={targetDate}
-                minimumDate={new Date()}
-                mode="date"
-                display="default"
-                onChange={onDateChange}
-              />
-            )}
-            <Text style={styles.orText}>or</Text>
-            <View style={styles.quickOptions}>
-              <TouchableOpacity style={styles.optionButton} onPress={() => addDays(30)}>
-                <Text>30 days</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.optionButton} onPress={() => addDays(90)}>
-                <Text>90 days</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.optionButton} onPress={() => addDays(365)}>
-                <Text>365 days</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-              <Text style={{ color: 'white', fontWeight: 'bold' }}>Next</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showSecondModal}
-        onRequestClose={() => setShowSecondModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Set Starting Count</Text>
-            <Text style={styles.modalText}>
-              Your starting count is a benchmark that the Quit Plan will use to help you quit.
-            </Text>
-            <Text style={styles.modalSubText}>
-              Every day this number will decrease as you move toward your Quit Date, until completely quit.
-            </Text>
-            <Text style={styles.puffLabel}>How many puffs do you currently take Daily?</Text>
-            <TextInput
-              style={styles.puffInput}
-              value={puffCount}
-              onChangeText={setPuffCount}
-              keyboardType="numeric"
-              placeholder="Puffs"
-            />
-            <Text style={styles.recommendText}>
-              We recommend logging at least one day of puffs in order to get an accurate count to start your plan with
-            </Text>
-            <TouchableOpacity style={styles.nextButton} onPress={handleFinish}>
-              <Text style={styles.nextButtonText}>Next</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      
+      <TouchableOpacity style={styles.nextButton} onPress={resetData}>
+        <Text style={styles.nextButtonText}>Reset Plan</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#000000', justifyContent: 'center', color: '#ffffff' },
+  container: { flex: 1, paddingHorizontal: 20, paddingBottom: 20, paddingTop: 40, backgroundColor: '#000000', alignItems: 'center' },
   header: { alignItems: 'center', marginBottom: 20, color: '#ffffff' },
   timerContainer: { alignItems: 'center', marginBottom: 20 },
   timerTitle: { fontSize: 18, marginBottom: 10, color: '#ffffff' },
@@ -480,15 +477,15 @@ const styles = StyleSheet.create({
   modalText: { fontSize: 14, marginBottom: 10, color: '#ffffff' },
   modalSubText: { fontSize: 12, color: '#ffffff', marginBottom: 20 },
   dateLabel: { fontSize: 16, marginBottom: 10, color: '#ffffff' },
-  dateInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 20 },
+  dateInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 20, color: '#ffffff' },
   orText: { textAlign: 'center', marginVertical: 10, color: '#ffffff' },
   quickOptions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   optionButton: { padding: 10, backgroundColor: '#e0e0e0', borderRadius: 5 },
-  nextButton: { backgroundColor: `rgba(0, 255, 0, 1)`, padding: 15, borderRadius: 5, alignItems: 'center', marginTop: 20 },
+  nextButton: { backgroundColor: `#e50000`, padding: 15, borderRadius: 5, alignItems: 'center', marginTop: 10 },
   puffLabel: { fontSize: 16, marginBottom: 10, color: '#ffffff' },
-  puffInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 20, textAlign: 'center' },
+  puffInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 20, textAlign: 'center', color: '#ffffff' },
   recommendText: { fontSize: 12, color: '#ffffff', marginBottom: 20 },
-  graphContainer: { marginVertical: 20, alignItems: 'center' },
+  graphContainer: { marginVertical: 20, alignItems: 'center', },
   graphTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#ffffff' },
   errorText: { color: 'red', textAlign: 'center' },
   nextButtonText: { color: 'black', fontWeight: 'bold', textAlign: 'center', },
@@ -521,6 +518,26 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginTop: 5,
   },
+  appTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
+  vapeText: {
+    color: '#FF3333',
+  },
+  freeText: {
+    color: '#FFFFFF',
+  },
+  titleContainer: {
+    marginBottom: 20,
+  },
+  onboardingContainer: {
+    flexGrow: 1,
+    backgroundColor: '#000000',
+    padding: 20,
+    justifyContent: 'center',
+  },
+
 });
 
 export default QuitPlanApp;
