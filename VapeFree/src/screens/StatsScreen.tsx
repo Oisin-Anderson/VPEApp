@@ -121,14 +121,13 @@ const StatsScreen = () => {
         const viewStart = new Date(baseDate);
         if (period === 'day') {
           const d = new Date(viewStart);
-          d.setDate(d.getDate() - 1);
           dates.push(d.toISOString().split('T')[0]);
           labels = Array.from({ length: 24 }, (_, i) => (i % 4 === 0 ? i.toString() : ''));
           data = Array(24).fill(0);
         } else if (period === 'week') {
-          for (let i = 0; i < 7; i++) { // week
-            const d = new Date(viewStart);
-            d.setDate(d.getDate() - 6 + i); // oldest first
+          for (let i = 0; i < 7; i++) {
+            const d = new Date();
+            d.setDate(d.getDate() - 6 + i); // includes today at i=29
             dates.push(d.toISOString().split('T')[0]);
           }
           labels = dates.map(d => {
@@ -137,15 +136,18 @@ const StatsScreen = () => {
           });
           data = Array(7).fill(0);
         } else {
-          for (let i = 0; i < 30; i++) { // month
-            const d = new Date(viewStart);
-            d.setDate(d.getDate() - 29 + i); // oldest first
+          for (let i = 0; i < 30; i++) {
+            const d = new Date();
+            d.setDate(d.getDate() - 29 + i); // includes today at i=29
             dates.push(d.toISOString().split('T')[0]);
           }
           labels = dates.map((d, i) => {
             const parsed = new Date(d);
-            return Number.isFinite(parsed.getTime()) && i % 5 === 0 ? parsed.getDate().toString() : '';
+            const shouldLabel = (29 - i) % 5 === 0 || i === 0; // Add label at far left
+            return shouldLabel ? parsed.getDate().toString() : '';
           });
+
+
           data = Array(30).fill(0);
         }
 
@@ -200,19 +202,32 @@ const StatsScreen = () => {
       const now = new Date();
       const viewStart = new Date();
       const periodLength = period === 'day' ? 1 : period === 'week' ? 7 : 30;
+      const compareSingleDays = period === 'day';
 
       const currentDates: string[] = [];
       const prevDates: string[] = [];
 
+      if (compareSingleDays) {
+      // current: yesterday, previous: two days ago
+      const today = new Date();
+      currentDates.push(today.toISOString().split('T')[0]);
+
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      prevDates.push(yesterday.toISOString().split('T')[0]);
+    } else {
       for (let i = 0; i < periodLength; i++) {
         const d = new Date(viewStart);
-        d.setDate(viewStart.getDate() - periodLength + i);
+        d.setDate(viewStart.getDate() - periodLength + 1 + i); // ✅ includes today
         currentDates.push(d.toISOString().split('T')[0]);
 
         const pd = new Date(viewStart);
-        pd.setDate(viewStart.getDate() - 2 * periodLength + i);
+        pd.setDate(viewStart.getDate() - 2 * periodLength + 1 + i);
         prevDates.push(pd.toISOString().split('T')[0]);
       }
+    }
+
+
 
       let currentCount = 0;
       let prevCount = 0;
@@ -242,7 +257,7 @@ const StatsScreen = () => {
           ? 0
           : prevCount === 0
             ? 0
-            : Math.round((currentCount / prevCount) * 100);
+            : Math.round(((currentCount - prevCount) / prevCount) * 100);
 
       // Calculate days since first login for average
       const today = new Date();
@@ -326,7 +341,13 @@ const StatsScreen = () => {
     const calculateTotalPuffs = async () => {
       try {
         const keys = await AsyncStorage.getAllKeys();
-        const puffKeys = keys.filter(key => key.startsWith('puffTimes-'));
+        const today = new Date().toISOString().split('T')[0];
+        const puffKeys = keys.filter(key => {
+          if (!key.startsWith('puffTimes-')) return false;
+          const datePart = key.split('puffTimes-')[1];
+          return datePart <= today; // ✅ ignore future entries
+        });
+
 
         let total = 0;
 
@@ -404,15 +425,25 @@ const StatsScreen = () => {
 
     if (viewPeriod === 'month') {
       return Array.from({ length: 30 }, (_, i) => {
-        const date = new Date(viewStartDate);
-        date.setDate(viewStartDate.getDate() - 29 + i);
-        return i % 5 === 0 ? date.getDate().toString() : '';
+        const date = new Date();
+        date.setDate(date.getDate() - (29 - i)); // i=0 => 29 days ago, i=29 => today
+        return (29 - i) % 5 === 0 ? date.getDate().toString() : '';
       });
     }
 
 
+
     return []; // fallback
   }, [viewPeriod, viewStartDate]);
+
+  const daysSinceLogin = useMemo(() => {
+    const today = new Date();
+    return Math.max(
+      Math.floor((today.getTime() - firstLoginDate.getTime()) / (1000 * 60 * 60 * 24)),
+      1
+    );
+  }, [firstLoginDate]);
+
 
 
   const handlePeriodChange = (period: 'day' | 'week' | 'month') => {
@@ -451,6 +482,9 @@ const StatsScreen = () => {
           <Text style={styles.freeText}>Puff</Text>
           <Text style={styles.vapeText}>Daddy</Text>
         </Text>
+        <Text style={{ color: '#ffffff', fontSize: 14, marginTop: 4 }}>
+          Logged in for {daysSinceLogin} {daysSinceLogin === 1 ? 'day' : 'days'}
+        </Text>
       </View>
       <View style={{ minHeight: 540, justifyContent: 'flex-start' }}>
       <View style={styles.chartContainer}>
@@ -464,6 +498,7 @@ const StatsScreen = () => {
           <ScrollView
             horizontal
             pagingEnabled
+            scrollEnabled={false}
             ref={scrollRef}
             showsHorizontalScrollIndicator={false}
             scrollEventThrottle={16}
@@ -503,7 +538,7 @@ const StatsScreen = () => {
                 <View key={period} style={{ width: scrollPageWidth, justifyContent: 'center' }}>
                   <Text style={styles.periodTitle}>
                     {period === 'day'
-                      ? 'Yesterday'
+                      ? 'Today'
                       : period === 'week'
                         ? 'Last 7 days'
                         : 'Last 30 days'}
@@ -552,7 +587,13 @@ const StatsScreen = () => {
                 </View>
                 {change !== null && (
                   <View style={styles.statCard}>
-                    <Text style={styles.statLabel}>Change</Text>
+                    <Text style={styles.statLabel}>
+                    {period === 'day'
+                      ? 'vs yesterday'
+                      : period === 'week'
+                        ? 'vs prev 7 days'
+                        : 'vs prev 30 days'}
+                    </Text>
                     <Text
                       style={[
                         styles.statValue,

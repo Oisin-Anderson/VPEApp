@@ -1,6 +1,5 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, StyleProp, ViewStyle, TextStyle } from 'react-native';
-import { Svg, Path, Line, Circle, Rect, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { usePuff } from '../context/PuffContext';
@@ -26,11 +25,6 @@ interface AppStyles {
   counterLabel: StyleProp<TextStyle>;
   nicotineText: StyleProp<TextStyle>;
   nicotineLabel: StyleProp<TextStyle>;
-  chartSection: StyleProp<ViewStyle>;
-  sectionTitle: StyleProp<TextStyle>;
-  chartContainer: StyleProp<ViewStyle>;
-  chartLabels: StyleProp<ViewStyle>;
-  chartLabel: StyleProp<TextStyle>;
   puffButton: StyleProp<ViewStyle>;
   puffButtonText: StyleProp<TextStyle>;
   modalOverlay: StyleProp<ViewStyle>;
@@ -45,6 +39,13 @@ interface AppStyles {
   appTitle: StyleProp<TextStyle>;
   vapeText: StyleProp<TextStyle>;
   freeText: StyleProp<TextStyle>;
+  nicotineCard: StyleProp<TextStyle>;
+  cardLabel: StyleProp<TextStyle>;
+  cardValue: StyleProp<TextStyle>;
+  timerRow: StyleProp<TextStyle>;
+  timerCard: StyleProp<TextStyle>;
+  cardNumber: StyleProp<TextStyle>;
+  cardLbl: StyleProp<TextStyle>;
 }
 
 const initialChartData: ChartDataPoint[] = [
@@ -55,18 +56,72 @@ const initialChartData: ChartDataPoint[] = [
   { time: '11 PM', value: 0 },
 ];
 
+
+const formatTimeComponents = (seconds: number) => {
+  const days = Math.floor(seconds / (3600 * 24));
+  const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  return { days, hours, minutes, seconds: secs };
+};
+
+
+const getRelativeTimeText = (lastPuff: Date | null): string => {
+  if (!lastPuff) return 'No puffs yet';
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - lastPuff.getTime()) / 1000); // in seconds
+
+  if (diff < 60) return 'A few seconds ago';
+  if (diff < 3600) {
+    const minutes = Math.floor(diff / 60);
+    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  }
+  if (diff < 86400) {
+    const hours = Math.floor(diff / 3600);
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+
+  const days = Math.floor(diff / 86400);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
+
+
+const getDurationText = (seconds: number): string => {
+  if (seconds < 60) return 'A few seconds';
+  if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+  }
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    return `${hours} hour${hours > 1 ? 's' : ''}`;
+  }
+  const days = Math.floor(seconds / 86400);
+  return `${days} day${days > 1 ? 's' : ''}`;
+};
+
+
+
+
 const HomeScreen = () => {
   const { puffCount, setPuffCount } = usePuff();
   const [lifetimePuffs, setLifetimePuffs] = useState(0);
   const [nicotineStrength, setNicotineStrength] = useState('0');
   const [nicotineMg, setNicotineMg] = useState(0);
   const [lifetimeNicotineMg, setLifetimeNicotineMg] = useState(0);
-  const [dailyLimit, setDailyLimit] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [chartData, setChartData] = useState<ChartDataPoint[]>(initialChartData);
   const [lastResetDate, setLastResetDate] = useState<string | null>(null);
   const [puffTrigger, setPuffTrigger] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [todayLimit, setTodayLimit] = useState<number | null>(null);
+  const [timeSinceLastPuff, setTimeSinceLastPuff] = useState(0); // in seconds
+  const [lastPuffTime, setLastPuffTime] = useState<Date | null>(null);
+  const [formattedTime, setFormattedTime] = useState(formatTimeComponents(0));
+  const [relativeTimeText, setRelativeTimeText] = useState('—');
+  const [longestTime, setLongestTime] = useState<number>(0);
+
+
 
 
   const formattedNicotine = `${nicotineMg.toFixed(2)} mg`;
@@ -88,8 +143,6 @@ const HomeScreen = () => {
           await AsyncStorage.setItem('nicotineStrength', '0');
           setNicotineStrength('0');
         }
-
-        if (savedDailyLimit) setDailyLimit(savedDailyLimit);
 
         const today = new Date().toISOString().split('T')[0];
         
@@ -133,6 +186,9 @@ const HomeScreen = () => {
           setLifetimePuffs(savedLifetimePuffs ? parseInt(savedLifetimePuffs, 10) : 0);
           setLifetimeNicotineMg(savedLifetimeNicotineMg ? parseFloat(savedLifetimeNicotineMg) : 0);
           setChartData(savedChartData ? JSON.parse(savedChartData) : initialChartData);
+          const savedNicotineMg = await AsyncStorage.getItem(`nicotineMg-${today}`);
+          setNicotineMg(savedNicotineMg ? parseFloat(savedNicotineMg) : 0);
+
           setLastResetDate(savedLastReset);
         }
 
@@ -144,6 +200,16 @@ const HomeScreen = () => {
 
     loadData();
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const timeInSeconds = getTimeSinceLastPuff();
+      setFormattedTime(formatTimeComponents(timeInSeconds));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lastPuffTime]);
+
 
   useEffect(() => {
     const computeNicotineMg = async () => {
@@ -164,7 +230,7 @@ const HomeScreen = () => {
       }, 0);
 
       console.log('Computed nicotineMg for today:', totalMg, 'using strength:', parsedStrength);
-      setNicotineMg(totalMg);
+      //setNicotineMg(totalMg);
     };
 
     if (isInitialized) {
@@ -172,52 +238,113 @@ const HomeScreen = () => {
     }
   }, [nicotineStrength, puffTrigger, isInitialized]);
 
+  useEffect(() => {
+    const loadPlanLimit = async () => {
+      try {
+        const plan = await AsyncStorage.getItem('quitPlanData');
+        if (!plan) return;
+
+        const parsed = JSON.parse(plan);
+        const { puffLimitData, startDate, targetDate, quitDateStored } = parsed;
+
+        if (!quitDateStored || !Array.isArray(puffLimitData) || !startDate || !targetDate) return;
+
+        const start = new Date(startDate);
+        const now = new Date();
+        const daysPassed = Math.floor(
+          (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+          new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) /
+          (1000 * 60 * 60 * 24)
+        );
+
+        if (daysPassed < puffLimitData.length) {
+          setTodayLimit(puffLimitData[daysPassed]);
+        } else {
+          setTodayLimit(null); // Plan expired
+        }
+      } catch (err) {
+        console.error('Error loading quit plan data:', err);
+      }
+    };
+
+    loadPlanLimit();
+  }, []);
+
+  const [quitDate, setQuitDate] = useState<string>('Not set');
+
+  useEffect(() => {
+    const loadQuitDate = async () => {
+      const plan = await AsyncStorage.getItem('quitPlanData');
+      if (plan) {
+        const { targetDate } = JSON.parse(plan);
+        if (targetDate) {
+          const formatted = new Date(targetDate).toLocaleDateString();
+          setQuitDate(formatted);
+        }
+      }
+    };
+
+    loadQuitDate();
+  }, []);
+
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRelativeTimeText(getRelativeTimeText(lastPuffTime));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lastPuffTime]);
+
+
+
 
   const handlePuff = async () => {
-    const limit = parseInt(dailyLimit, 10);
-    if (!isNaN(limit) && puffCount >= limit) {
-      Alert.alert('Limit reached', `You have reached your daily limit of ${limit} puffs.`);
-      return;
+    const strength = parseFloat(nicotineStrength) || 0;
+    const nicotinePerPuff = 0.005 * strength;
+    const now = new Date();
+
+    // 🔄 Update timer & nicotine display immediately
+    setLastPuffTime(now);
+    const newNicotineMg = nicotineMg + nicotinePerPuff;
+    setNicotineMg(newNicotineMg);
+    setPuffCount(prev => prev + 1);
+    setPuffTrigger(prev => prev + 1);
+
+    const secondsSinceLastPuff = lastPuffTime ? Math.floor((now.getTime() - lastPuffTime.getTime()) / 1000) : 0;
+
+    if (secondsSinceLastPuff > longestTime) {
+      setLongestTime(secondsSinceLastPuff);
+      await AsyncStorage.setItem('longestTime', secondsSinceLastPuff.toString());
     }
 
-    const strength = parseFloat(nicotineStrength) || 0;
-    console.log('Using nicotineStrength on puff:', strength);
 
-    const now = new Date();
     const puffTime = now.toISOString();
     const puffEntry: PuffEntry = { time: puffTime, strength };
+    const today = new Date().toISOString().split('T')[0];
 
     try {
-      const today = new Date().toISOString().split('T')[0];
-
       const savedDaily = await AsyncStorage.getItem(`puffTimes-${today}`);
       const dailyPuffTimes = savedDaily ? JSON.parse(savedDaily) : [];
 
       dailyPuffTimes.push(puffEntry);
 
       await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(dailyPuffTimes));
-
-
-      setNicotineMg((prev: number) => prev + strength);
-      setPuffCount((prev: number) => prev + 1);
-      setPuffTrigger(prev => prev + 1);
+      await AsyncStorage.setItem('lastPuffTimestamp', puffTime);
+      await AsyncStorage.setItem(`nicotineMg-${today}`, newNicotineMg.toString());
     } catch (error) {
-      console.error('Error adding puff:', error);
+      console.error('Error saving puff data:', error);
     }
   };
+
+
 
   const handleCirclePress = () => {
     setIsModalVisible(true);
   };
 
   const handleSave = async () => {
-    const limit = parseInt(dailyLimit, 10);
     const strength = parseFloat(nicotineStrength);
-
-    if (dailyLimit && (isNaN(limit) || limit <= 0)) {
-      Alert.alert('Invalid input', 'Please enter a valid daily puff limit.');
-      return;
-    }
 
     if (nicotineStrength && (isNaN(strength) || strength < 0)) {
       Alert.alert('Invalid input', 'Please enter a valid nicotine strength.');
@@ -227,7 +354,6 @@ const HomeScreen = () => {
     try {
       // ✅ Save explicitly, not via useEffect
       await AsyncStorage.setItem('nicotineStrength', nicotineStrength);
-      await AsyncStorage.setItem('dailyLimit', dailyLimit);
 
       console.log('Saved nicotineStrength to storage:', nicotineStrength);
 
@@ -242,216 +368,64 @@ const HomeScreen = () => {
     setPuffCount(count);
   };
 
-  function getSmoothPath(points: { x: number; y: number }[]) {
-    if (points.length < 2) return `M${points[0].x},${points[0].y}`;
 
-    let d = `M${points[0].x},${points[0].y}`;
 
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i === 0 ? i : i - 1];
-      const p1 = points[i];
-      const p2 = points[i + 1];
-      const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
-
-      const goingUp = p2.y < p1.y;
-
-      if (goingUp) {
-        const cp1x = p1.x + (p2.x - p0.x) / 6;
-        const cp1y = p1.y + (p2.y - p0.y) / 6;
-        const cp2x = p2.x - (p3.x - p1.x) / 6;
-        const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-        d += ` C${cp1x},${cp1y},${cp2x},${cp2y},${p2.x},${p2.y}`;
-      } else {
-        d += ` L${p2.x},${p2.y}`;
-      }
-    }
-
-    return d;
-  }
-
-  function getShadowPath(points: { x: number; y: number }[], chartHeight: number, padding: number) {
-    if (points.length < 2) return '';
-
-    const linePath = getSmoothPath(points);
-    const lastPoint = points[points.length - 1];
-    const firstPoint = points[0];
-
-    return `${linePath} L${lastPoint.x},${chartHeight - padding} L${firstPoint.x},${chartHeight - padding} L${firstPoint.x},${firstPoint.y} Z`;
-  }
-
-  const SimpleChart = ({
-    puffTrigger,
-    onPuffCountUpdate,
-    styles,
-  }: {
-    puffTrigger: number;
-    onPuffCountUpdate: (count: number) => void;
-    styles: AppStyles;
-  }) => {
-    const width = Dimensions.get('window').width - 20;
-    const height = 150;
-    const basePadding = 10;
-    const maxLabelWidth = 30;
-
-    const [points, setPoints] = useState<{ x: number; y: number; time: string; value: number }[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const convertToHours = (time: string) => {
-      const [hourStr, period] = time.split(' ');
-      const hour = parseInt(hourStr.split(':')[0], 10);
-      return period === 'AM' && hour === 12 ? 0 : period === 'PM' && hour !== 12 ? hour + 12 : hour;
-    };
-
-    const formatCurrentTime = () => {
-      const now = new Date();
-      const hours = now.getHours();
-      const period = hours >= 12 ? 'PM' : 'AM';
-      const hour12 = hours % 12 || 12;
-      return `${hour12} ${period}`;
-    };
-
-    const now = new Date();
-    const currentHour = now.getHours();
-    const allTimes = ['12 AM', '6 AM', '12 PM', '6 PM', '11 PM'];
-    const passedTimes = allTimes.filter(time => convertToHours(time) <= currentHour);
-    const fixedTimes = passedTimes.includes('12 PM') && currentHour === 12 ? [...passedTimes] : [...passedTimes, formatCurrentTime()];
-
-    useEffect(() => {
-      const timeout = setTimeout(() => {
-        loadPoints();
-      }, 150); // wait for AsyncStorage to settle
-
-      return () => clearTimeout(timeout);
-    }, [puffTrigger]);
-
-  const loadPoints = async () => {
-      setIsLoading(true);
+  useEffect(() => {
+    const loadTodayPuffCount = async () => {
+      const today = new Date().toISOString().split('T')[0];
       try {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const json = await AsyncStorage.getItem(`puffTimes-${todayStr}`);
-        const entries: PuffEntry[] = json ? JSON.parse(json) : [];
-
-        const now = new Date();
-        const currentHour = now.getHours();
-        const cumulativeCounts: number[] = [];
-
-        let runningTotal = 0;
-
-        for (let hour = 0; hour <= currentHour; hour++) {
-          const countThisHour = entries.filter(e => {
-            const date = new Date(typeof e === 'string' ? e : e.time);
-            return date.getHours() === hour && date.toISOString().split('T')[0] === todayStr;
-          }).length;
-
-          runningTotal += countThisHour;
-          cumulativeCounts.push(runningTotal);
-        }
-
-        onPuffCountUpdate(runningTotal);
-
-        const padding = basePadding + maxLabelWidth;
-        const maxValue = Math.max(...cumulativeCounts, 1);
-
-        const computedPoints = cumulativeCounts.map((value, i) => {
-          const x = padding + (i * ((width - 2 * padding) / currentHour));
-          const y = height - padding - ((value / maxValue) * (height - 2 * padding));
-          return {
-            x,
-            y,
-            time: `${i}:00`,
-            value,
-          };
-        });
-
-        setPoints(computedPoints);
+        const savedPuffTimes = await AsyncStorage.getItem(`puffTimes-${today}`);
+        const puffTimes = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
+        setPuffCount(puffTimes.length);
       } catch (err) {
-        console.error('Error generating hourly points:', err);
-      } finally {
-        setIsLoading(false);
+        console.error('Failed to load today\'s puff count:', err);
+        setPuffCount(0);
       }
     };
 
-
-
-    if (isLoading || points.length === 0) {
-      return null;
+    if (isInitialized) {
+      loadTodayPuffCount();
     }
+  }, [isInitialized, puffTrigger]);
 
-    const maxValue = Math.max(...points.map(p => p.value), 1);
-    const padding = basePadding + maxLabelWidth;
+  useEffect(() => {
+    const restoreLastPuff = async () => {
+      const lastPuffStr = await AsyncStorage.getItem('lastPuffTimestamp');
+      const longestStr = await AsyncStorage.getItem('longestTime');
 
-    const linePath = getSmoothPath(points);
-    const shadowPath = getShadowPath(points, height, padding);
+      if (lastPuffStr) {
+        setLastPuffTime(new Date(lastPuffStr));
+      }
+      if (longestStr) {
+        setLongestTime(parseInt(longestStr, 10) || 0);
+      }
+    };
 
-    return (
-      <View style={[styles.chartContainer, { paddingHorizontal: padding }]}>
-        <Svg height={height} width={width}>
-          <Rect x="0" y="0" width={width} height={height} fill="#161618" rx="10" />
-          <Path d={shadowPath} fill="rgba(229, 0, 0, 0.3)" stroke="none" />
-          <Path d={linePath} fill="none" stroke="#e50000" strokeWidth="2" />
-          {[maxValue / 2, maxValue].map((val, i) => {
-            const y = height - padding - (val / maxValue) * (height - 2 * padding);
-            const firstX = points[0]?.x || padding;
-            const lastX = points[points.length - 1]?.x || width - padding;
-            return (
-              <Fragment key={`axis-${i}`}>
-                <Line
-                  x1={firstX}        // ✅ align with red line start
-                  y1={y}
-                  x2={lastX}         // ✅ align with red line end
-                  y2={y}
-                  stroke="#FFFFFF"
-                  strokeWidth="1"
-                  strokeOpacity={0.6}
-                />
-                <SvgText
-                  x={firstX - 5}
-                  y={y}
-                  fill="#FFFFFF"
-                  fontSize="12"
-                  textAnchor="end"
-                  dy={3}
-                >
-                  {String(Math.round(val))}
-                </SvgText>
-              </Fragment>
-            );
-          })}
-        </Svg>
-        <View style={styles.chartLabels}>
-          {points.map((p, i) => {
-            const hour = parseInt(p.time.split(':')[0], 10);
-            const labelTime = (() => {
-              if (hour === 0) return '12 AM';
-              if (hour === 6) return '6 AM';
-              if (hour === 12) return '12 PM';
-              if (hour === 18) return '6 PM';
-              if (hour === 23) return '11 PM';
+    if (isInitialized) {
+      restoreLastPuff();
+    }
+  }, [isInitialized]);
 
-              const currentHour = new Date().getHours();
-              if (hour === currentHour && hour !== 23 && ![0, 6, 12, 18].includes(hour)) {
-                const suffix = hour < 12 ? 'AM' : 'PM';
-                const hour12 = hour % 12 || 12;
-                return `${hour12} ${suffix}`;
-              }
 
-              return null;
-            })();
-
-            return labelTime ? (
-              <Text
-                key={`label-${i}`}
-                style={[styles.chartLabel, { left: p.x - padding - 25, position: 'absolute' }]}
-              >
-                {labelTime}
-              </Text>
-            ) : null;
-          })}
-        </View>
-      </View>
-    );
+  const getTimeSinceLastPuff = (): number => {
+    if (!lastPuffTime) return 0;
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - lastPuffTime.getTime()) / 1000);
+    return seconds >= 0 ? seconds : 0;
   };
+
+  const currentElapsed = getTimeSinceLastPuff();
+
+  useEffect(() => {
+    if (currentElapsed > longestTime) {
+      setLongestTime(currentElapsed);
+    }
+  }, [currentElapsed]);
+
+
+
+
+
 
   return (
     <View style={styles.container}>
@@ -465,18 +439,38 @@ const HomeScreen = () => {
         <View style={styles.counterCircle}>
           <Text style={styles.counterText}>{puffCount}</Text>
           <Text style={styles.counterLabel}>PUFFS TODAY</Text>
-          <Text style={styles.nicotineText}>{formattedNicotine}</Text>
-          <Text style={styles.nicotineLabel}>NICOTINE</Text>
+          <Text style={[styles.nicotineText, { fontWeight: 'bold', color: '#E50000' }]}>
+            {formattedNicotine}
+          </Text>
+          <Text style={[styles.nicotineLabel]}>Nicotine</Text>
         </View>
       </TouchableOpacity>
-      <View style={styles.chartSection}>
-        <Text style={styles.sectionTitle}>Usage today</Text>
-        <SimpleChart puffTrigger={puffTrigger} onPuffCountUpdate={handlePuffCountUpdate} styles={styles} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20, width: '100%' }}>
+        <View style={styles.timerCard}>
+          <Text style={styles.cardLbl}>Puff Limit</Text>
+          <Text style={styles.cardNumber}>{todayLimit ?? '—'}</Text>
+        </View>
+        <View style={styles.timerCard}>
+          <Text style={styles.cardLbl}>Quit Date</Text>
+          <Text style={styles.cardNumber}>{quitDate}</Text>
+        </View>
+        <View style={styles.timerCard}>
+          <Text style={styles.cardLbl}>Last Puff</Text>
+          <Text style={styles.cardNumber}>{relativeTimeText}</Text>
+        </View>
+        <View style={styles.timerCard}>
+          <Text style={styles.cardLbl}>Record Time</Text>
+          <Text style={styles.cardNumber}>{getDurationText(Math.max(longestTime, currentElapsed))}</Text>
+        </View>
       </View>
       <TouchableOpacity style={styles.puffButton} onPress={handlePuff}>
         <Ionicons name="add" size={24} color="#fff" />
         <Text style={styles.puffButtonText}>PUFF</Text>
       </TouchableOpacity>
+
+
+
+
       <Modal
         transparent={true}
         visible={isModalVisible}
@@ -485,19 +479,8 @@ const HomeScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>SETTINGS</Text>
+            <Text style={styles.modalTitle}>Set Strength</Text>
             <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Set Daily Puff Limit</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={dailyLimit}
-                onChangeText={setDailyLimit}
-                placeholder="e.g., 10"
-              />
-            </View>
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Set Strength</Text>
               <TextInput
                 style={styles.input}
                 keyboardType="numeric"
@@ -505,7 +488,7 @@ const HomeScreen = () => {
                 onChangeText={setNicotineStrength}
                 placeholder="e.g., 0.5"
               />
-              <Text style={styles.inputUnit}>mg</Text>
+              <Text style={styles.inputUnit}>mg/ml</Text>
             </View>
             <Pressable style={styles.saveButton} onPress={handleSave}>
               <Text style={styles.saveButtonText}>Save</Text>
@@ -547,53 +530,22 @@ const styles: AppStyles = StyleSheet.create({
     shadowRadius: 4,
   },
   counterText: {
-    fontSize: 60,
+    fontSize: 50,
     fontWeight: 'bold',
     color: '#ffffff',
   },
   counterLabel: {
-    fontSize: 20,
-    color: '#ffffff',
-  },
-  nicotineText: {
-    fontSize: 24,
-    color: `rgba(229, 0, 0, 1)`,
-    marginTop: 10,
-  },
-  nicotineLabel: {
     fontSize: 16,
     color: '#ffffff',
   },
-  chartSection: {
-    width: '90%',
-    marginVertical: 20,
+  nicotineText: {
+    fontSize: 18,
+    color: `rgba(229, 0, 0, 1)`,
+    marginTop: 12,
   },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  chartContainer: {
-    height: 150,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    position: 'relative',
-    paddingHorizontal: 20,
-  },
-  chartLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 5,
-    width: '100%',
-  },
-  chartLabel: {
-    fontSize: 12,
+  nicotineLabel: {
+    fontSize: 14,
     color: '#ffffff',
-    fontWeight: '500',
-    textAlign: 'center',
-    transform: [{ translateX: '-50%' }],
   },
   puffButton: {
     flexDirection: 'row',
@@ -677,6 +629,55 @@ const styles: AppStyles = StyleSheet.create({
   freeText: {
     color: '#FFFFFF',
   },
+  nicotineCard: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 10,
+    padding: 15,
+    marginTop: 20,
+    width: '90%',
+    alignItems: 'center',
+  },
+  cardLabel: {
+    fontSize: 16,
+    color: '#CCCCCC',
+    marginBottom: 5,
+  },
+  cardValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#E50000',
+  },
+  timerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 20,
+    width: '100%',
+  },
+  timerCard: {
+    alignItems: 'center',
+    backgroundColor: '#020202',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    width: '48%',
+    marginBottom: 12,
+  },
+  cardNumber: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  cardLbl: {
+    fontSize: 12,
+    color: '#ffffff',
+    marginTop: 5,
+  },
+
 });
 
 export default HomeScreen;

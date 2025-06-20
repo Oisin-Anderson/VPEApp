@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, TextInput } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { CountdownCircleTimer } from 'react-native-countdown-circle-timer';
 import { LineChart } from 'react-native-chart-kit';
 import { usePuff } from '../context/PuffContext';
 import { ScrollView } from 'react-native';
@@ -9,6 +8,71 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Explicitly define the render function type
 type RenderFunction = (remainingTime: number) => React.ReactNode;
+
+const generateEasedDropPlan = (initial: number, totalDays: number): number[] => {
+  const steps: number[] = [initial];
+  let current = initial;
+  let day = 1;
+
+  const lastThirdStart = Math.floor(totalDays * 2 / 3);
+  const taperTarget = Math.floor(initial / 5); // want to reach this by start of last third
+
+  // Phase 1–2: smoother, slightly random descent to taperTarget
+  while (day < lastThirdStart) {
+    const daysLeftToTaper = lastThirdStart - day;
+    const toDrop = current - taperTarget;
+    const avgDrop = Math.max(1, Math.floor(toDrop / daysLeftToTaper));
+
+    // Add random offset to make it uneven but not jagged
+    const randomOffset = Math.floor(Math.random() * 3) - 1; // -1 to +1
+    const drop = Math.max(1, avgDrop + randomOffset);
+
+    const holdDays = Math.min(daysLeftToTaper, Math.floor(Math.random() * 2) + 1); // 1–2 day hold
+
+    current = Math.max(taperTarget, current - drop);
+
+    for (let i = 0; i < holdDays && day < lastThirdStart; i++) {
+      steps.push(current);
+      day++;
+    }
+  }
+
+  // Phase 3: taper to 0 with smaller, more random steps
+  // Phase 3: taper to 0 with varied flat + random drops
+const remainingDays = totalDays - day;
+const totalDrop = current;
+let stepsRemaining = remainingDays;
+let finalPlan: number[] = [];
+
+while (stepsRemaining > 1) {
+  const shouldHold = Math.random() < 0.3; // 30% chance to hold
+  if (shouldHold) {
+    finalPlan.push(current); // no drop today
+    stepsRemaining--;
+    day++;
+    continue;
+  }
+
+  // If dropping, decide drop size (1–3) but don't overshoot
+  const maxDrop = Math.min(current, Math.floor(totalDrop / stepsRemaining) + 2);
+  const drop = Math.max(1, Math.floor(Math.random() * maxDrop) + 1);
+
+  current = Math.max(0, current - drop);
+  finalPlan.push(current);
+  stepsRemaining--;
+  day++;
+}
+
+// Ensure the last day is 0
+finalPlan.push(0);
+steps.push(...finalPlan);
+
+return steps;
+};
+
+
+
+
 
 
 const QuitPlanApp = () => {
@@ -27,6 +91,8 @@ const QuitPlanApp = () => {
   const [puffsToday, setPuffToday] = useState(0);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
   const [startDate, setStartDate] = useState<Date | null>(null);
+  const [storedPuffLimitData, setStoredPuffLimitData] = useState<number[]>([]);
+
 
 
   useEffect(() => {
@@ -151,10 +217,18 @@ const QuitPlanApp = () => {
             setQuitDateStored(true);
             setShowModal(false);
           }
+
+          if (data.puffLimitData) {
+            setStoredPuffLimitData(data.puffLimitData); // ✅ this is the correct key
+          }
+
+
         }
       } catch (err) {
         console.error('Failed to load quit plan data:', err);
       }
+
+      setIsLoading(false);
     };
 
     loadStoredData();
@@ -168,6 +242,7 @@ const QuitPlanApp = () => {
     setPuffCount('');
     setTargetDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)); // Optional: reset to 30 days ahead
     setTimeLeft(null); // 🧼 Reset the timer countdown
+    setStoredPuffLimitData([]); // ✅ clears the stored line in memory
   };
 
 
@@ -195,29 +270,43 @@ const QuitPlanApp = () => {
   };
 
   const handleFinish = async () => {
+    if (quitDateStored) return; // ✅ Guard: don't regenerate if plan already exists
+
     const count = parseInt(puffCount, 10);
     if (isNaN(count) || count <= 0) {
       alert('Please enter a valid starting puff count.');
       return;
     }
 
-    const now = new Date();
-    const diff = targetDate.getTime() - now.getTime();
-    if (diff > 0) {
-      setTimeLeft(Math.floor(diff / 1000));
-    }
+    const startDate = new Date(); // ✅ define a local startDate (same as `now`)
+    const totalDays = Math.ceil((targetDate.getTime() - startDate.getTime()) / 86400000) + 1;
 
-    setShowSecondModal(false);
-    setQuitDateStored(true);
+    // ✅ Generate puff limit data
+    const generatedPuffLimitData = generateEasedDropPlan(count, totalDays);
 
+
+
+
+
+    // ✅ Store it in AsyncStorage
     await AsyncStorage.setItem('quitPlanData', JSON.stringify({
       puffCount: count,
       targetDate: targetDate.toISOString(),
-      startDate: new Date().toISOString(), // ✅ Save start date
+      startDate: startDate.toISOString(),         // ✅ save it properly
+      puffLimitData: generatedPuffLimitData,      // ✅ save precomputed data
       quitDateStored: true,
     }));
+    setStoredPuffLimitData(generatedPuffLimitData); // ✅ Immediately use the new plan
 
+
+    setShowSecondModal(false);
+    setQuitDateStored(true);
+    setTimeLeft(Math.floor((targetDate.getTime() - startDate.getTime()) / 1000)); // use the same base
+    setStartDate(startDate); // ✅ update the state too so it's ready for calculations
   };
+
+
+
 
   const chartWidth = 350;
   const totalDays = useMemo(() => {
@@ -232,18 +321,37 @@ const QuitPlanApp = () => {
     return isNaN(n) ? 0 : n;
   }, [puffCount]);
 
+
+  const fallbackRandomizedSteps = useMemo(() => {
+    return generateEasedDropPlan(puffCountNum, totalDays);
+  }, [puffCountNum, totalDays]);
+
+
+
   
-  const puffLimitData = Array.from({ length: totalDays }, (_, i) => {
-    const t = i / (totalDays - 1); // goes from 0 to 1
-    const eased = 1 - Math.pow(t, 2);
-    return Math.round(eased * puffCountNum);
-  });
+  const puffLimitData = useMemo(() => {
+    if (isLoading) return [];
+
+    if (storedPuffLimitData.length > 0 && storedPuffLimitData.every(n => typeof n === 'number')) {
+      return storedPuffLimitData; // ✅ freeze from stored version
+    }
+    console.warn('⚠️ Using fallback! puffLimitData was missing or corrupted.');
+    return fallbackRandomizedSteps; // ❌ only runs if no stored data (dev safety)
+  }, [storedPuffLimitData]);
+
 
 
   const todayIndex = useMemo(() => {
     if (!startDate) return 0;
     const now = new Date();
-    const daysPassed = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const truncateToDate = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+    const daysPassed = Math.floor(
+      (truncateToDate(new Date()).getTime() - truncateToDate(startDate).getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    
     return Math.min(daysPassed, puffLimitData.length - 1);
   }, [startDate, puffLimitData.length]);
 
@@ -430,7 +538,7 @@ const QuitPlanApp = () => {
             withDots={false}
             withInnerLines={false}  // removes inside grid lines
             withOuterLines={false}  // removes outer edge lines
-            //withDots={false} // removes bullet points from lines
+            segments={5}
             chartConfig={{
               backgroundColor: '#161618',
               backgroundGradientFrom: '#161618',
