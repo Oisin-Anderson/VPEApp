@@ -20,12 +20,21 @@ const AppNavigator = () => {
     { key: 'settings', title: 'Settings', icon: 'settings-outline', activeIcon: 'settings' },
   ]);
 
-  const renderScene = SceneMap({
-    home: HomeScreen,
-    goals: GoalsScreen,
-    history: StatsScreen,
-    settings: SettingsScreen,
-  });
+  const renderScene = ({ route }: any) => {
+    switch (route.key) {
+      case 'home':
+        return <HomeScreen refreshKey={index} />;
+      case 'goals':
+        return <GoalsScreen />;
+      case 'history':
+        return <StatsScreen />;
+      case 'settings':
+        return <SettingsScreen />;
+      default:
+        return null;
+    }
+  };
+
 
   const renderTabBar = () => (
     <SafeAreaView style={styles.tabBarContainer}>

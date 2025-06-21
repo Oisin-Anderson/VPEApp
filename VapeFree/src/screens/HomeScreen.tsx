@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, StyleProp, ViewStyle, TextStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { usePuff } from '../context/PuffContext';
+import { Animated } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
+
+
 
 // Define interfaces for data
 interface ChartDataPoint {
@@ -103,10 +107,11 @@ const getDurationText = (seconds: number): string => {
 
 
 
-const HomeScreen = () => {
+const HomeScreen = ({ refreshKey }: { refreshKey: number }) => {
   const { puffCount, setPuffCount } = usePuff();
   const [lifetimePuffs, setLifetimePuffs] = useState(0);
   const [nicotineStrength, setNicotineStrength] = useState('0');
+  const isStrengthConfigured = parseFloat(nicotineStrength) > 0;
   const [nicotineMg, setNicotineMg] = useState(0);
   const [lifetimeNicotineMg, setLifetimeNicotineMg] = useState(0);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -120,6 +125,12 @@ const HomeScreen = () => {
   const [formattedTime, setFormattedTime] = useState(formatTimeComponents(0));
   const [relativeTimeText, setRelativeTimeText] = useState('—');
   const [longestTime, setLongestTime] = useState<number>(0);
+  const [showStats, setShowStats] = useState(true);
+  const [fadeAnim] = useState(new Animated.Value(1)); // starts fully visible
+  const isFocused = useIsFocused();
+  const showStatsRef = useRef(true);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
 
 
@@ -238,54 +249,56 @@ const HomeScreen = () => {
     }
   }, [nicotineStrength, puffTrigger, isInitialized]);
 
-  useEffect(() => {
-    const loadPlanLimit = async () => {
-      try {
-        const plan = await AsyncStorage.getItem('quitPlanData');
-        if (!plan) return;
+  const [quitDate, setQuitDate] = useState<string>('Not set');
 
-        const parsed = JSON.parse(plan);
-        const { puffLimitData, startDate, targetDate, quitDateStored } = parsed;
 
-        if (!quitDateStored || !Array.isArray(puffLimitData) || !startDate || !targetDate) return;
+useEffect(() => {
+  const loadQuitPlanInfo = async () => {
+    const plan = await AsyncStorage.getItem('quitPlanData');
+    if (!plan) {
+      setTodayLimit(null);
+      setQuitDate('Not set');
+      return;
+    }
 
+    try {
+      const parsed = JSON.parse(plan);
+      const { puffLimitData, startDate, targetDate, quitDateStored } = parsed;
+
+      if (targetDate) {
+        const formatted = new Date(targetDate).toLocaleDateString();
+        setQuitDate(formatted);
+      } else {
+        setQuitDate('Not set');
+      }
+
+      if (quitDateStored && Array.isArray(puffLimitData) && startDate) {
         const start = new Date(startDate);
         const now = new Date();
         const daysPassed = Math.floor(
           (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
-          new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) /
+           new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) /
           (1000 * 60 * 60 * 24)
         );
 
-        if (daysPassed < puffLimitData.length) {
-          setTodayLimit(puffLimitData[daysPassed]);
-        } else {
-          setTodayLimit(null); // Plan expired
-        }
-      } catch (err) {
-        console.error('Error loading quit plan data:', err);
+        const limit = puffLimitData[daysPassed] ?? null;
+        setTodayLimit(typeof limit === 'number' ? limit : null);
+      } else {
+        setTodayLimit(null);
       }
-    };
 
-    loadPlanLimit();
-  }, []);
+    } catch (err) {
+      console.error('Error loading plan info:', err);
+      setTodayLimit(null);
+      setQuitDate('Not set');
+    }
+  };
 
-  const [quitDate, setQuitDate] = useState<string>('Not set');
+  loadQuitPlanInfo();
+}, [refreshKey]); // 🔁 Triggers when tab index changes
 
-  useEffect(() => {
-    const loadQuitDate = async () => {
-      const plan = await AsyncStorage.getItem('quitPlanData');
-      if (plan) {
-        const { targetDate } = JSON.parse(plan);
-        if (targetDate) {
-          const formatted = new Date(targetDate).toLocaleDateString();
-          setQuitDate(formatted);
-        }
-      }
-    };
 
-    loadQuitDate();
-  }, []);
+
 
 
   useEffect(() => {
@@ -332,6 +345,9 @@ const HomeScreen = () => {
       await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(dailyPuffTimes));
       await AsyncStorage.setItem('lastPuffTimestamp', puffTime);
       await AsyncStorage.setItem(`nicotineMg-${today}`, newNicotineMg.toString());
+
+      setShowStats(true);
+      fadeAnim.setValue(1);
     } catch (error) {
       console.error('Error saving puff data:', error);
     }
@@ -407,6 +423,60 @@ const HomeScreen = () => {
   }, [isInitialized]);
 
 
+
+  useEffect(() => {
+    if (isModalVisible || isStrengthConfigured) {
+      console.log('[ANIMATION] Skipped due to modal open or strength configured.');
+      return;
+    }
+
+    console.log('[ANIMATION] Starting animation cycle');
+
+    const cycle = () => {
+      console.log('[ANIMATION] Fading out...', showStatsRef.current ? 'Showing stats' : 'Showing text');
+
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }).start(() => {
+        showStatsRef.current = !showStatsRef.current;
+        setShowStats(showStatsRef.current);
+
+        console.log('[ANIMATION] Switched to:', showStatsRef.current ? 'Stats view' : '"Tap to Configure"');
+
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }).start(() => {
+          const nextDelay = showStatsRef.current ? 7000 : 3000;
+          console.log(`[ANIMATION] Will show this view for ${nextDelay / 1000} seconds`);
+          timeoutRef.current = setTimeout(cycle, nextDelay);
+        });
+      });
+    };
+
+    timeoutRef.current = setTimeout(() => {
+      console.log('[ANIMATION] Initial delay complete, running cycle...');
+      cycle();
+    }, showStatsRef.current ? 7000 : 3000);
+
+    return () => {
+      console.log('[ANIMATION] Cleaning up timeout');
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [isModalVisible, isStrengthConfigured]);
+
+
+
+
+
+
+
+
+
+
   const getTimeSinceLastPuff = (): number => {
     if (!lastPuffTime) return 0;
     const now = new Date();
@@ -437,18 +507,62 @@ const HomeScreen = () => {
       </View>
       <TouchableOpacity onPress={handleCirclePress} style={styles.counterContainer}>
         <View style={styles.counterCircle}>
-          <Text style={styles.counterText}>{puffCount}</Text>
-          <Text style={styles.counterLabel}>PUFFS TODAY</Text>
-          <Text style={[styles.nicotineText, { fontWeight: 'bold', color: '#E50000' }]}>
-            {formattedNicotine}
-          </Text>
-          <Text style={[styles.nicotineLabel]}>Nicotine</Text>
+          {isStrengthConfigured ? (
+            // If configured, show data without animation
+            <>
+              <Text style={styles.counterText}>{puffCount}</Text>
+              <Text style={styles.counterLabel}>PUFFS TODAY</Text>
+              <Text style={[styles.nicotineText, { fontWeight: 'bold', color: '#E50000' }]}>
+                {formattedNicotine}
+              </Text>
+              <Text style={[styles.nicotineLabel]}>Nicotine</Text>
+            </>
+          ) : (
+            <>
+              <Animated.View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: fadeAnim,
+              }}
+            >
+              {showStats ? (
+                <>
+                  <Text style={styles.counterText}>{puffCount}</Text>
+                  <Text style={styles.counterLabel}>PUFFS TODAY</Text>
+                  <Text
+                    style={[
+                      styles.nicotineText,
+                      { fontWeight: 'bold', color: '#E50000' },
+                    ]}
+                  >
+                    {formattedNicotine}
+                  </Text>
+                  <Text style={styles.nicotineLabel}>Nicotine</Text>
+                </>
+              ) : (
+                <Text
+                  style={[styles.counterLabel, { fontSize: 16, textAlign: 'center' }]}
+                >
+                  Tap to Configure
+                </Text>
+              )}
+            </Animated.View>
+
+            </>
+          )}
         </View>
       </TouchableOpacity>
+
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20, width: '100%' }}>
         <View style={styles.timerCard}>
           <Text style={styles.cardLbl}>Puff Limit</Text>
-          <Text style={styles.cardNumber}>{todayLimit ?? '—'}</Text>
+          <Text style={styles.cardNumber}>{todayLimit ?? 'Not Set'}</Text>
         </View>
         <View style={styles.timerCard}>
           <Text style={styles.cardLbl}>Quit Date</Text>
@@ -486,7 +600,7 @@ const HomeScreen = () => {
                 keyboardType="numeric"
                 value={nicotineStrength}
                 onChangeText={setNicotineStrength}
-                placeholder="e.g., 0.5"
+                placeholder="e.g., 3"
               />
               <Text style={styles.inputUnit}>mg/ml</Text>
             </View>

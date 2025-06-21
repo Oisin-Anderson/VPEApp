@@ -9,66 +9,71 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Explicitly define the render function type
 type RenderFunction = (remainingTime: number) => React.ReactNode;
 
-const generateEasedDropPlan = (initial: number, totalDays: number): number[] => {
-  const steps: number[] = [initial];
-  let current = initial;
-  let day = 1;
+const generateAggressiveStartPlan = (totalDays: number, startPuffs: number): number[] => {
+  if (totalDays <= 1) return [0];
 
-  const lastThirdStart = Math.floor(totalDays * 2 / 3);
-  const taperTarget = Math.floor(initial / 5); // want to reach this by start of last third
+  // 🧪 Simple fallback if starting puffs are very low
+  if (startPuffs < 5) {
+    const plan: number[] = [];
+    const stepDown = startPuffs / (totalDays - 1);
 
-  // Phase 1–2: smoother, slightly random descent to taperTarget
-  while (day < lastThirdStart) {
-    const daysLeftToTaper = lastThirdStart - day;
-    const toDrop = current - taperTarget;
-    const avgDrop = Math.max(1, Math.floor(toDrop / daysLeftToTaper));
+    for (let day = 0; day < totalDays - 1; day++) {
+      const puffs = Math.round(startPuffs - stepDown * day);
+      plan.push(Math.max(puffs, 1)); // keep at least 1 until final day
+    }
 
-    // Add random offset to make it uneven but not jagged
-    const randomOffset = Math.floor(Math.random() * 3) - 1; // -1 to +1
-    const drop = Math.max(1, avgDrop + randomOffset);
+    plan.push(0); // Final day
+    plan[0] = startPuffs;
+    plan[plan.length - 1] = 0;
 
-    const holdDays = Math.min(daysLeftToTaper, Math.floor(Math.random() * 2) + 1); // 1–2 day hold
+    return plan;
+  }
 
-    current = Math.max(taperTarget, current - drop);
+  // ✅ Normal strategy for startPuffs >= 5
+  const numberOfSteps = Math.min(10, totalDays - 1);
+  const plan: number[] = [];
 
-    for (let i = 0; i < holdDays && day < lastThirdStart; i++) {
-      steps.push(current);
-      day++;
+  const stepDownAmount = startPuffs / numberOfSteps;
+  const weights: number[] = Array.from({ length: numberOfSteps }, (_, i) => Math.pow(i + 1, 2));
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  const stepLengths = weights.map(w => Math.round((w / totalWeight) * (totalDays - 1)));
+
+  let totalAssigned = stepLengths.reduce((sum, len) => sum + len, 0);
+  while (totalAssigned > totalDays - 1) {
+    for (let i = stepLengths.length - 1; i >= 0 && totalAssigned > totalDays - 1; i--) {
+      if (stepLengths[i] > 1) {
+        stepLengths[i]--;
+        totalAssigned--;
+      }
+    }
+  }
+  while (totalAssigned < totalDays - 1) {
+    for (let i = 0; i < stepLengths.length && totalAssigned < totalDays - 1; i++) {
+      stepLengths[i]++;
+      totalAssigned++;
     }
   }
 
-  // Phase 3: taper to 0 with smaller, more random steps
-  // Phase 3: taper to 0 with varied flat + random drops
-const remainingDays = totalDays - day;
-const totalDrop = current;
-let stepsRemaining = remainingDays;
-let finalPlan: number[] = [];
-
-while (stepsRemaining > 1) {
-  const shouldHold = Math.random() < 0.3; // 30% chance to hold
-  if (shouldHold) {
-    finalPlan.push(current); // no drop today
-    stepsRemaining--;
-    day++;
-    continue;
+  for (let step = 0; step < numberOfSteps; step++) {
+    const puffsThisStep = Math.round(startPuffs - step * stepDownAmount);
+    for (let i = 0; i < stepLengths[step]; i++) {
+      plan.push(puffsThisStep);
+    }
   }
 
-  // If dropping, decide drop size (1–3) but don't overshoot
-  const maxDrop = Math.min(current, Math.floor(totalDrop / stepsRemaining) + 2);
-  const drop = Math.max(1, Math.floor(Math.random() * maxDrop) + 1);
+  plan.push(0);
+  plan[0] = startPuffs;
+  plan[plan.length - 1] = 0;
 
-  current = Math.max(0, current - drop);
-  finalPlan.push(current);
-  stepsRemaining--;
-  day++;
-}
-
-// Ensure the last day is 0
-finalPlan.push(0);
-steps.push(...finalPlan);
-
-return steps;
+  return plan;
 };
+
+
+
+
+
+
+
 
 
 
@@ -81,9 +86,10 @@ const QuitPlanApp = () => {
   const [showModal, setShowModal] = useState(true); // Force modal on initial load
   const [targetDate, setTargetDate] = useState(() => {
     const now = new Date();
-    now.setDate(now.getDate() + 30); // Default to 30 days from now
+    now.setDate(now.getDate() + 7); // ✅ default to 7 days from now
     return now;
   });
+
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showSecondModal, setShowSecondModal] = useState(false);
   const [puffCount, setPuffCount] = useState('');
@@ -180,7 +186,10 @@ const QuitPlanApp = () => {
   const onDateChange = (event: any, selectedDate: Date | undefined) => {
     const currentDate = selectedDate || targetDate;
     const now = new Date();
-    if (currentDate.getTime() <= now.getTime()) {
+    const minDate = new Date();
+    minDate.setDate(minDate.getDate() + 6);
+    
+    if (currentDate < minDate) {
       alert('Please select a future date.');
       return;
     }
@@ -240,16 +249,21 @@ const QuitPlanApp = () => {
     setShowSecondModal(false);
     setQuitDateStored(false);
     setPuffCount('');
-    setTargetDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)); // Optional: reset to 30 days ahead
+
+    const newDate = new Date();
+    newDate.setDate(newDate.getDate() + 7); // default to 7 days ahead
+    setTargetDate(newDate);
+
     setTimeLeft(null); // 🧼 Reset the timer countdown
     setStoredPuffLimitData([]); // ✅ clears the stored line in memory
   };
 
 
   const addDays = (days: number) => {
-    const newDate = new Date(targetDate);
+    const newDate = new Date();
     newDate.setDate(newDate.getDate() + days);
     setTargetDate(newDate);
+
   };
 
   const formatTime = (time: number) => {
@@ -282,7 +296,7 @@ const QuitPlanApp = () => {
     const totalDays = Math.ceil((targetDate.getTime() - startDate.getTime()) / 86400000) + 1;
 
     // ✅ Generate puff limit data
-    const generatedPuffLimitData = generateEasedDropPlan(count, totalDays);
+    const generatedPuffLimitData = generateAggressiveStartPlan(totalDays, count);
 
 
 
@@ -323,7 +337,7 @@ const QuitPlanApp = () => {
 
 
   const fallbackRandomizedSteps = useMemo(() => {
-    return generateEasedDropPlan(puffCountNum, totalDays);
+    return generateAggressiveStartPlan(totalDays, puffCountNum);
   }, [puffCountNum, totalDays]);
 
 
@@ -431,11 +445,16 @@ const QuitPlanApp = () => {
         {showDatePicker && (
           <DateTimePicker
             value={targetDate}
-            minimumDate={new Date()}
+            minimumDate={(() => {
+              const min = new Date();
+              min.setDate(min.getDate() + 7);
+              return min;
+            })()}
             mode="date"
             display="default"
             onChange={onDateChange}
           />
+
         )}
 
         <Text style={styles.orText}>Quick Options</Text>
