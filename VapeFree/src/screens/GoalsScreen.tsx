@@ -1,10 +1,25 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, TextInput } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle, useRef } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, TextInput, Animated, Easing } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LineChart } from 'react-native-chart-kit';
 import { usePuff } from '../context/PuffContext';
 import { ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { Alert } from 'react-native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { Dimensions } from 'react-native';
+import Progress from './Progress'; // adjust path if needed
+
+
+const BASE_WIDTH = 375;
+const BASE_HEIGHT = 812;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const scale = (size: number) => (SCREEN_WIDTH / BASE_WIDTH) * size;
+const verticalScale = (size: number) => (SCREEN_HEIGHT / BASE_HEIGHT) * size;
 
 // Explicitly define the render function type
 type RenderFunction = (remainingTime: number) => React.ReactNode;
@@ -77,10 +92,14 @@ const generateAggressiveStartPlan = (totalDays: number, startPuffs: number): num
 
 
 
+type GoalsScreenProps = {
+  onReset?: () => void;
+  onHardReset?: () => void;
+};
 
+const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
+  const { onReset, onHardReset } = props;
 
-
-const QuitPlanApp = () => {
   const { puffCount: homePuffCount } = usePuff();
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(true); // Force modal on initial load
@@ -98,6 +117,13 @@ const QuitPlanApp = () => {
   const [isLoading, setIsLoading] = useState(true); // Add loading state
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [storedPuffLimitData, setStoredPuffLimitData] = useState<number[]>([]);
+  const navigation = useNavigation() as any;
+  const [puffsTodayColor, setPuffsTodayColor] = useState('#ffffff');
+  const isFocused = useIsFocused();
+  const [planPage, setPlanPage] = useState(0);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+
+
 
 
 
@@ -115,68 +141,63 @@ const QuitPlanApp = () => {
   }, [targetDate, quitDateStored]);
 
   useEffect(() => {
-    if (quitDateStored && timeLeft !== null) {
+    if (quitDateStored) {
       const updateCountdown = () => {
         const now = new Date();
         const diff = targetDate.getTime() - now.getTime();
-        if (diff > 0) {
-          setTimeLeft(Math.floor(diff / 1000));
-        } else {
-          setTimeLeft(0);
-        }
+        setTimeLeft(diff > 0 ? Math.floor(diff / 1000) : 0);
       };
-      updateCountdown();
+
+      updateCountdown(); // run once immediately
       const interval = setInterval(updateCountdown, 1000);
       return () => clearInterval(interval);
     }
-  }, [quitDateStored, timeLeft, targetDate]);
+  }, [quitDateStored, targetDate]); // ✅ removed timeLeft from deps
+
 
   const [puffHistoryData, setPuffHistoryData] = useState<number[]>([]);
 
   useEffect(() => {
     const loadPuffData = async () => {
-    try {
-      const planData = await AsyncStorage.getItem('quitPlanData');
-      if (!planData) return;
+      try {
+        const planData = await AsyncStorage.getItem('quitPlanData');
+        if (!planData) return;
 
-      const { targetDate } = JSON.parse(planData);
-      const endDate = new Date(targetDate);
+        const { targetDate } = JSON.parse(planData);
+        const endDate = new Date(targetDate);
+        if (!startDate) return;
 
-      if (!startDate) return;
-      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+        const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+        const newData: number[] = [];
 
-      
-
-      const newData: number[] = [];
-
-      for (let i = 0; i < totalDays; i++) {
-        const date = new Date(startDate);
-        date.setDate(startDate.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
-
-        const json = await AsyncStorage.getItem(`puffTimes-${dateStr}`);
-        if (json) {
-          try {
-            const entries = JSON.parse(json);
-            newData.push(Array.isArray(entries) ? entries.length : 0);
-          } catch {
+        for (let i = 0; i < totalDays; i++) {
+          const date = new Date(startDate);
+          date.setDate(startDate.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          const json = await AsyncStorage.getItem(`puffTimes-${dateStr}`);
+          if (json) {
+            try {
+              const entries = JSON.parse(json);
+              newData.push(Array.isArray(entries) ? entries.length : 0);
+            } catch {
+              newData.push(0);
+            }
+          } else {
             newData.push(0);
           }
-        } else {
-          newData.push(0);
         }
+
+        setPuffHistoryData(newData);
+      } catch (err) {
+        console.warn('Error loading puff history for graph:', err);
       }
+    };
 
-      setPuffHistoryData(newData);
-    } catch (err) {
-      console.warn('Error loading puff history for graph:', err);
-    }
-  };
-
-    if (quitDateStored && timeLeft !== null) {
+    if (quitDateStored && startDate) {
       loadPuffData();
     }
-  }, [targetDate, timeLeft, quitDateStored, startDate]);
+  }, [targetDate, quitDateStored, startDate]); // ✅ safe, minimal dependencies
+
 
   useEffect(() => {
     const validPuffCount = typeof homePuffCount === 'number' && !isNaN(homePuffCount) ? homePuffCount : 0;
@@ -243,20 +264,47 @@ const QuitPlanApp = () => {
     loadStoredData();
   }, []);
 
+  useEffect(() => {
+    if (!quitDateStored && planPage !== 0) {
+      setPlanPage(0);
+    }
+  }, [quitDateStored]);
+
+
+
+
+
+
+
   const resetData = async () => {
     await AsyncStorage.removeItem('quitPlanData');
-    setShowModal(true);
+
+
+    setShowModal(false); // Force close first
     setShowSecondModal(false);
     setQuitDateStored(false);
     setPuffCount('');
+    setStoredPuffLimitData([]);
+    setTargetDate(() => {
+      const newDate = new Date();
+      newDate.setDate(newDate.getDate() + 7);
+      return newDate;
+    });
+    setTimeLeft(null);
 
-    const newDate = new Date();
-    newDate.setDate(newDate.getDate() + 7); // default to 7 days ahead
-    setTargetDate(newDate);
+    
 
-    setTimeLeft(null); // 🧼 Reset the timer countdown
-    setStoredPuffLimitData([]); // ✅ clears the stored line in memory
+    if (onHardReset) {
+      onHardReset(); // ⬅️ trigger full remount
+      return;
+    }
+
+    setTimeout(() => {
+      setPlanPage(0);
+      setShowModal(true);
+    }, 0); // 🔁 triggers clean remount
   };
+
 
 
   const addDays = (days: number) => {
@@ -299,6 +347,12 @@ const QuitPlanApp = () => {
     const generatedPuffLimitData = generateAggressiveStartPlan(totalDays, count);
 
 
+    if (!generatedPuffLimitData || generatedPuffLimitData.length === 0 || !generatedPuffLimitData.every(n => typeof n === 'number')) {
+      console.warn('🚨 Invalid puffLimitData — aborting save');
+      return;
+    }
+
+
 
 
 
@@ -322,7 +376,7 @@ const QuitPlanApp = () => {
 
 
 
-  const chartWidth = 350;
+  const chartWidth = Dimensions.get('window').width - scale(48);
   const totalDays = useMemo(() => {
     if (!startDate || !targetDate) return 0;
     const diff = targetDate.getTime() - startDate.getTime();
@@ -423,15 +477,50 @@ const QuitPlanApp = () => {
 
 
 
+  useEffect(() => {
+    if (!isFocused) return;
+
+    if (puffsToday < todayLimit) {
+      setPuffsTodayColor('#22c55e'); // green
+    } else if (puffsToday > todayLimit) {
+      setPuffsTodayColor('#ef4444'); // red
+    } else {
+      setPuffsTodayColor('#facc15'); // yellow
+    }
+  }, [isFocused, puffsToday, todayLimit]);
+
+
+  useImperativeHandle(ref, () => ({
+    resetData,
+    triggerResetModal: () => setShowSecondModal(true), // ✅ exposes the modal trigger
+  }));
+
+
+  const hasFinishedRef = useRef(false);
+
+  useEffect(() => {
+    if (planPage === 2 && !quitDateStored && !hasFinishedRef.current) {
+      hasFinishedRef.current = true;
+      const timeout = setTimeout(() => {
+        if (!quitDateStored) {
+          handleFinish();
+        }
+      }, 4000);
+      return () => clearTimeout(timeout);
+    }
+  }, [planPage, quitDateStored, handleFinish]);
+
+
+
+
+
   if (!quitDateStored) {
+  if (planPage === 0) {
     return (
       <ScrollView contentContainerStyle={styles.onboardingContainer}>
-        <Text style={styles.modalTitle}>Start Your Quit Plan</Text>
+        <Text style={styles.modalTitle}>Set Your Quit Date</Text>
         <Text style={styles.modalText}>
-          The best way to quit is to set a goal and reduce slowly overtime. We've set it to 30 days but feel free to extend your quit date.
-        </Text>
-        <Text style={styles.modalSubText}>
-          Choose a realistic Quit Date and your current daily puff count.
+          The best way to quit is to set a goal and reduce slowly over time.
         </Text>
 
         <Text style={styles.dateLabel}>Pick Your Quit Date</Text>
@@ -454,21 +543,38 @@ const QuitPlanApp = () => {
             display="default"
             onChange={onDateChange}
           />
-
         )}
 
         <Text style={styles.orText}>Quick Options</Text>
         <View style={styles.quickOptions}>
-          <TouchableOpacity style={styles.optionButton} onPress={() => addDays(30)}>
-            <Text>30 Days</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.optionButton} onPress={() => addDays(90)}>
-            <Text>90 Days</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.optionButton} onPress={() => addDays(365)}>
-            <Text>365 Days</Text>
-          </TouchableOpacity>
+          {[7, 30, 60].map(days => (
+            <TouchableOpacity key={days} style={styles.optionButton} onPress={() => addDays(days)}>
+              <Text style={styles.optionButtonText}>{days} Days</Text>
+            </TouchableOpacity>
+          ))}
         </View>
+          
+        <LinearGradient
+          colors={['#EF4444', '#3B82F6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.gradientButton}
+        >
+          <TouchableOpacity style={styles.puffButton} onPress={() => setPlanPage(1)}>
+            <Text style={styles.puffButtonText}>Next</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      </ScrollView>
+    );
+  }
+
+  if (planPage === 1) {
+    return (
+      <ScrollView contentContainerStyle={styles.onboardingContainer}>
+        <Text style={styles.modalTitle}>Track Your Puffs</Text>
+        <Text style={styles.modalText}>
+          Enter your current daily puff count. We’ll use it to build a custom reduction plan.
+        </Text>
 
         <Text style={styles.puffLabel}>How many puffs do you take daily?</Text>
         <TextInput
@@ -476,37 +582,88 @@ const QuitPlanApp = () => {
           value={puffCount}
           onChangeText={setPuffCount}
           keyboardType="numeric"
-          placeholder="Puffs"
+          placeholder="500"
+          placeholderTextColor="#666666"
         />
 
         <Text style={styles.recommendText}>
           We recommend tracking your puffs for a day or two before entering here to get a better plan.
         </Text>
 
-        <TouchableOpacity style={styles.nextButton} onPress={handleFinish}>
-          <Text style={styles.nextButtonText}>Generate My Quit Plan</Text>
-        </TouchableOpacity>
+        <LinearGradient
+          colors={['#EF4444', '#3B82F6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.gradientButton}
+        >
+          <TouchableOpacity
+            style={styles.puffButton}
+            onPress={async () => {
+              if (!puffCount || isNaN(Number(puffCount)) || Number(puffCount) <= 0) {
+                alert('Please enter a valid number of puffs');
+                return;
+              }
+
+              await handleFinish(); // ✅ generate and store the plan
+              setQuitDateStored(true); // ✅ flip the flag so main UI loads
+            }}
+
+          >
+            <Text style={styles.puffButtonText}>Next</Text>
+          </TouchableOpacity>
+        </LinearGradient>
       </ScrollView>
     );
   }
+
+}
+
+
+  <Modal
+    transparent={true}
+    visible={showSecondModal}
+    animationType="fade"
+    onRequestClose={() => setShowSecondModal(false)}
+  >
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        <Text style={styles.modalTitle}>Reset Quit Plan</Text>
+        <Text style={styles.modalText}>This will delete your current plan and allow you to start over.</Text>
+
+        <Pressable style={styles.saveButton} onPress={resetData}>
+          <Text style={styles.saveButtonText}>Reset Plan</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.saveButton, { backgroundColor: '#333', marginTop: 10 }]}
+          onPress={() => setShowSecondModal(false)}
+        >
+          <Text style={[styles.saveButtonText, { color: '#fff' }]}>Cancel</Text>
+        </Pressable>
+      </View>
+    </View>
+  </Modal>
+
 
 
 
 
   return (
     <View style={styles.container}>
-      <View style={styles.titleContainer}>
-        <Text style={styles.appTitle}>
-          <Text style={styles.freeText}>Puff</Text>
-          <Text style={styles.vapeText}>Daddy</Text>
-        </Text>
+      <View style={styles.dualCard}>
+        <View style={styles.dualValue}>
+          <Text style={styles.cardNumber}>{todayLimit}</Text>
+          <Text style={styles.cardLabel}>Limit Today</Text>
+        </View>
+        <View style={styles.dualValue}>
+          <Text style={[styles.cardNumber, { color: puffsTodayColor }]}>{puffsToday}</Text>
+          <Text style={styles.cardLabel}>Puffs Today</Text>
+        </View>
       </View>
-      <View style={styles.header}>
-        <Text style={{color: `#0088cc`}}>Limit today: {todayLimit} puffs</Text>
-        <Text style={{color: `#E50000`}}>Puffs today: {puffsToday} puffs</Text>
-      </View>
+
+
       <View style={styles.timerContainer}>
-        <Text style={styles.timerTitle}>Countdown Timer</Text>
+        <Text style={styles.timerTitle}>You'll be Vape Free in</Text>
         {renderTimers ? (
           <View style={styles.cardRow}>
             <View style={styles.timerCard}>
@@ -541,12 +698,12 @@ const QuitPlanApp = () => {
               datasets: [
                 {
                   data: puffLimitData,
-                  color: (opacity = 1) => `#0088cc`,
+                  color: () => `#3B82F6`,
                   strokeWidth: 2,
                 },
                 {
                   data: puffEnteredData,
-                  color: (opacity = 1) => '#e50000',
+                  color: () => '#EF4444',
                   strokeWidth: 2,
                 },
               ],
@@ -558,13 +715,16 @@ const QuitPlanApp = () => {
             withInnerLines={false}  // removes inside grid lines
             withOuterLines={false}  // removes outer edge lines
             segments={5}
+            bezier
             chartConfig={{
-              backgroundColor: '#161618',
-              backgroundGradientFrom: '#161618',
-              backgroundGradientTo: '#161618',
+              backgroundColor: '#000',
+              backgroundGradientFrom: '#000',
+              backgroundGradientTo: '#000',
               decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-              labelColor: (opacity = 1) => `#ffffff`,  // Axis labels
+              fillShadowGradient: 'transparent',
+              fillShadowGradientOpacity: 0,
+              color: () => `#ffffff`,
+              labelColor: () => `#ffffff`,  // Axis labels
               style: {
                 borderRadius: 16,
               },
@@ -580,91 +740,239 @@ const QuitPlanApp = () => {
           <Text style={styles.errorText}>Loading graph data...</Text>
         )}
       </View>
-
       
-      <TouchableOpacity style={styles.nextButton} onPress={resetData}>
-        <Text style={styles.nextButtonText}>Reset Plan</Text>
-      </TouchableOpacity>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20, paddingBottom: 20, paddingTop: 40, backgroundColor: '#000000', alignItems: 'center' },
-  header: { alignItems: 'center', marginBottom: 20, color: '#ffffff' },
-  timerContainer: { alignItems: 'center', marginBottom: 20 },
-  timerTitle: { fontSize: 18, marginBottom: 10, color: '#ffffff' },
-  timerRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
-  timerCircle: { alignItems: 'center' },
-  timerText: { fontSize: 14, fontWeight: 'bold', color: '#ffffff' },
-  timerLabel: { fontSize: 10, color: '#666' },
-  modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: { backgroundColor: 'white', padding: 20, borderRadius: 10, width: '80%' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10, color: '#ffffff' },
-  modalText: { fontSize: 14, marginBottom: 10, color: '#ffffff' },
-  modalSubText: { fontSize: 12, color: '#ffffff', marginBottom: 20 },
-  dateLabel: { fontSize: 16, marginBottom: 10, color: '#ffffff' },
-  dateInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 20, color: '#ffffff' },
-  orText: { textAlign: 'center', marginVertical: 10, color: '#ffffff' },
-  quickOptions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  optionButton: { padding: 10, backgroundColor: '#e0e0e0', borderRadius: 5 },
-  nextButton: { backgroundColor: `#e50000`, padding: 15, borderRadius: 5, alignItems: 'center', marginTop: 10 },
-  puffLabel: { fontSize: 16, marginBottom: 10, color: '#ffffff' },
-  puffInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 20, textAlign: 'center', color: '#ffffff' },
-  recommendText: { fontSize: 12, color: '#ffffff', marginBottom: 20 },
-  graphContainer: { marginVertical: 20, alignItems: 'center', },
-  graphTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#ffffff' },
-  errorText: { color: 'red', textAlign: 'center' },
-  nextButtonText: { color: 'black', fontWeight: 'bold', textAlign: 'center', },
-  cardRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginTop: 10,
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    paddingTop: verticalScale(20),
+    paddingHorizontal: scale(24),
+    paddingBottom: verticalScale(30),
   },
-  timerCard: {
+  onboardingContainer: {
+    flexGrow: 1,
+    backgroundColor: '#000000',
+    padding: scale(24),
+    justifyContent: 'flex-start', // tighter stacking
+  },
+
+  modalTitle: {
+    fontSize: scale(22),
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: verticalScale(6), // tighter
+  },
+
+  modalText: {
+  fontSize: scale(14),
+  color: '#aaaaaa',
+  marginBottom: verticalScale(14), // tighter than 20+
+},
+
+  modalSubText: {
+    fontSize: scale(14),
+    color: '#aaaaaa',
+    marginBottom: verticalScale(20),
+  },
+  dateLabel: {
+    fontSize: scale(16),
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: verticalScale(8),
+  },
+  dateInput: {
+    backgroundColor: '#1a1a1a',
+    padding: scale(12),
+    borderRadius: scale(12),
+    marginBottom: verticalScale(16),
+    color: '#ffffff',
+    fontSize: scale(16),
+    width: '100%',
+  },
+  orText: {
+    color: '#ffffff',
+    fontSize: scale(14),
+    textAlign: 'center',
+    marginVertical: verticalScale(16),
+  },
+  quickOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: verticalScale(20),
+    color: '#fff',
+  },
+  optionButton: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+    paddingVertical: verticalScale(14),
+    borderRadius: scale(12),
+    alignItems: 'center',
+    marginHorizontal: scale(5),
+  },
+  optionButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: scale(14),
+  },
+  puffLabel: {
+    fontSize: scale(16),
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: verticalScale(8),
+  },
+  puffInput: {
+    backgroundColor: '#1a1a1a',
+    padding: scale(12),
+    borderRadius: scale(12),
+    marginBottom: verticalScale(16),
+    textAlign: 'center',
+    color: '#ffffff',
+    fontSize: scale(16),
+    fontWeight: '500', // added this
+    width: '100%',
+  },
+  recommendText: {
+    fontSize: scale(13),
+    color: '#aaaaaa',
+    marginBottom: verticalScale(16),
+  },
+  gradientButton: {
+    width: '100%',
+    borderRadius: scale(30),
+    marginTop: verticalScale(20),
+  },
+  puffButton: {
+    paddingVertical: verticalScale(16),
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: scale(30),
+    width: '100%',
+  },
+  puffButtonText: {
+    color: '#000',
+    fontSize: scale(16),
+    fontWeight: 'bold',
+  },
+  // Existing retained styles for post-plan UI
+  dualCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#020202',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+    paddingVertical: verticalScale(15),
+    paddingHorizontal: scale(20),
+    borderRadius: scale(10),
+    width: '100%',
+    marginBottom: verticalScale(20),
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
-    width: 70,
+  },
+  dualValue: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  timerContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: verticalScale(10),
+  },
+  timerTitle: {
+    fontSize: scale(16),
+    color: '#ffffff',
+    opacity: 0.85,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: verticalScale(6),
+  },
+  timerCard: {
+    alignItems: 'center',
+    backgroundColor: '#020202',
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: scale(10),
+    borderRadius: scale(10),
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    width: '24%',
+    marginBottom: verticalScale(12),
   },
   cardNumber: {
-    fontSize: 22,
+    fontSize: scale(22),
     fontWeight: 'bold',
     color: '#ffffff',
   },
   cardLabel: {
-    fontSize: 12,
+    fontSize: scale(12),
     color: '#ffffff',
-    marginTop: 5,
+    marginTop: verticalScale(5),
   },
-  appTitle: {
-    fontSize: 28,
+  graphContainer: {
+    width: '100%',
+    marginVertical: verticalScale(20),
+    alignItems: 'center',
+  },
+  graphTitle: {
+    fontSize: scale(18),
     fontWeight: 'bold',
+    marginBottom: verticalScale(10),
+    color: '#ffffff',
   },
-  vapeText: {
-    color: '#FF3333',
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
   },
-  freeText: {
-    color: '#FFFFFF',
-  },
-  titleContainer: {
-    marginBottom: 20,
-  },
-  onboardingContainer: {
-    flexGrow: 1,
-    backgroundColor: '#000000',
-    padding: 20,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#1e1e1e',
+    paddingVertical: verticalScale(30),
+    paddingHorizontal: scale(30),
+    borderRadius: scale(20),
+    width: '90%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  saveButton: {
+    backgroundColor: '#fff',
+    paddingVertical: verticalScale(15),
+    paddingHorizontal: scale(40),
+    borderRadius: scale(30),
+    marginTop: verticalScale(10),
+    width: '100%',
+  },
+  saveButtonText: {
+    fontSize: scale(16),
+    fontWeight: 'bold',
+    color: '#000',
+    textAlign: 'center',
   },
 
 });
 
-export default QuitPlanApp;
+
+
+
+
+export default GoalsScreen;

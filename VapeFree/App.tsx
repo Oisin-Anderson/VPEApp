@@ -5,7 +5,22 @@ import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { PuffProvider } from './src/context/PuffContext'; // or ../context/PuffContext
 
+/*Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+    shouldShowBanner: true, // ✅ required
+    shouldShowList: true,   // ✅ required
+  }),
+});*/
+
+
+
+
 export default function App() {
+
+
   return (
     <PuffProvider>
       <NavigationContainer>

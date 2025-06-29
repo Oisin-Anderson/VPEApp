@@ -1,16 +1,27 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, Dispatch, SetStateAction } from 'react';
 
 type PuffContextType = {
   puffCount: number;
-  setPuffCount: React.Dispatch<React.SetStateAction<number>>;
+  setPuffCount: Dispatch<SetStateAction<number>>;
+  quitGoal: string;
+  setQuitGoal: Dispatch<SetStateAction<string>>;
 };
 
 const PuffContext = createContext<PuffContextType | undefined>(undefined);
 
 export const PuffProvider = ({ children }: { children: ReactNode }) => {
   const [puffCount, setPuffCount] = useState<number>(0);
+  const [quitGoal, setQuitGoal] = useState<string>('');
+
   return (
-    <PuffContext.Provider value={{ puffCount, setPuffCount }}>
+    <PuffContext.Provider
+      value={{
+        puffCount,
+        setPuffCount,
+        quitGoal,
+        setQuitGoal,
+      }}
+    >
       {children}
     </PuffContext.Provider>
   );

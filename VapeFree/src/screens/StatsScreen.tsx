@@ -3,6 +3,17 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Activ
 import { LineChart } from 'react-native-chart-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePuff } from '../context/PuffContext';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { LinearGradient } from 'expo-linear-gradient'; // ✅ This is correct
+import { useFocusEffect } from '@react-navigation/native';
+
+
+const BASE_WIDTH = 375;
+const BASE_HEIGHT = 812;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const scale = (size: number) => (SCREEN_WIDTH / BASE_WIDTH) * size;
+const verticalScale = (size: number) => (SCREEN_HEIGHT / BASE_HEIGHT) * size;
 
 
 interface PuffEntry {
@@ -11,7 +22,7 @@ interface PuffEntry {
 }
 
 const StatsScreen = () => {
-  const [viewPeriod, setViewPeriod] = useState<'day' | 'week' | 'month'>('day');
+  const [viewPeriod, setViewPeriod] = useState<'day' | 'week' | 'month' | 'year'>('day');
   const [totalPuffsRecorded, setTotalPuffsRecorded] = useState(0);
   const formatDate = (date: Date) => {
     if (isNaN(date.getTime())) return 'Invalid Date';
@@ -30,17 +41,38 @@ const StatsScreen = () => {
   const [scrollPageWidth, setScrollPageWidth] = useState(Dimensions.get('window').width);
   const chartWidth = scrollPageWidth;                // for LineChart width
   const [isChartReady, setIsChartReady] = useState(false);
+  const [avgDailyPuffsFromUser, setAvgDailyPuffsFromUser] = useState<number | null>(null);
+  const [savedMap, setSavedMap] = useState<{ day: number; week: number; month: number, year: number }>({
+    day: 0,
+    week: 0,
+    month: 0,
+    year: 0,
+  });
+  const { puffCount } = usePuff();
+  const underlineAnim = useRef(new Animated.Value(0)).current; 
 
 
-  const scrollToView = (period: 'day' | 'week' | 'month') => {
-    const index = period === 'day' ? 0 : period === 'week' ? 1 : 2;
+
+
+
+
+  const scrollToView = (period: 'day' | 'week' | 'month' | 'year') => {
+    const index =
+      period === 'day' ? 0 :
+      period === 'week' ? 1 :
+      period === 'month' ? 2 :
+      3; // year
 
     if (!isChartReady || !scrollRef.current || scrollPageWidth === 0) {
       console.warn('Scroll not ready');
       return;
     }
 
-    console.log(`🔁 Scrolling to: ${period} (index ${index})`);
+    // 🔁 Animate underline to the new index
+    Animated.spring(underlineAnim, {
+      toValue: index,
+      useNativeDriver: true,
+    }).start();
 
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({
@@ -48,7 +80,6 @@ const StatsScreen = () => {
         animated: true,
       });
 
-      // ⏱ Trigger a second scroll to ensure it lands (Android quirk)
       setTimeout(() => {
         scrollRef.current?.scrollTo({
           x: scrollPageWidth * index,
@@ -58,22 +89,27 @@ const StatsScreen = () => {
     });
   };
 
+
+
   const [chartDataMap, setChartDataMap] = useState<{
     day: { data: number[]; labels: string[] };
     week: { data: number[]; labels: string[] };
     month: { data: number[]; labels: string[] };
+    year: { data: number[]; labels: string[] };
   }>({
     day: { data: [], labels: [] },
     week: { data: [], labels: [] },
     month: { data: [], labels: [] },
+    year: { data: [], labels: [] },
   });
 
 
 
 
 
+
   const [statsMap, setStatsMap] = useState<{
-    [key in 'day' | 'week' | 'month']: {
+    [key in 'day' | 'week' | 'month' | 'year']: {
       total: number;
       avg: number;
       change: number | null;
@@ -82,6 +118,7 @@ const StatsScreen = () => {
     day: { total: 0, avg: 0, change: null },
     week: { total: 0, avg: 0, change: null },
     month: { total: 0, avg: 0, change: null },
+    year: { total: 0, avg: 0, change: null },
   });
 
 
@@ -101,18 +138,42 @@ const StatsScreen = () => {
   });
 
 
-  const [firstLoginDate, setFirstLoginDate] = useState<Date>(() => {
-    // Replace this with your actual value from AsyncStorage if needed
-    return new Date('2024-01-01'); // first login fallback
-  });
+  const [firstLoginDate, setFirstLoginDate] = useState<Date | null>(null);
+
+  const daysSinceLogin = useMemo(() => {
+    if (!firstLoginDate) return 0; // Default to 0
+    const today = new Date();
+    return Math.max(
+      Math.floor((today.getTime() - firstLoginDate.getTime()) / (1000 * 60 * 60 * 24)),
+      1
+    );
+  }, [firstLoginDate]);
+
+
+
 
 
   useEffect(() => {
+    const fetchStartDate = async () => {
+      const stored = await AsyncStorage.getItem('startDate');
+      if (stored) {
+        setFirstLoginDate(new Date(stored));
+      } else {
+        setFirstLoginDate(new Date()); // fallback to today
+      }
+    };
+    fetchStartDate();
+  }, []);
+
+
+
+  useEffect(
+    React.useCallback(() => {
     const loadAllCharts = async () => {
       const baseDate = new Date();
       
 
-      const fetchData = async (period: 'day' | 'week' | 'month') => {
+      const fetchData = async (period: 'day' | 'week' | 'month' | 'year') => {
         let labels: string[] = [];
         let data: number[] = [];
         let entries: PuffEntry[] = [];
@@ -135,7 +196,7 @@ const StatsScreen = () => {
             return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day];
           });
           data = Array(7).fill(0);
-        } else {
+        } else if (period === 'month'){
           for (let i = 0; i < 30; i++) {
             const d = new Date();
             d.setDate(d.getDate() - 29 + i); // includes today at i=29
@@ -149,6 +210,44 @@ const StatsScreen = () => {
 
 
           data = Array(30).fill(0);
+        } else {
+          
+          const today = new Date(); // ✅ Fix: declare today here
+          const months: string[] = [];
+          const monthLabels: string[] = [];
+          const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          for (let i = 11; i >= 0; i--) {
+            const d = new Date(today);
+            d.setMonth(today.getMonth() - i);
+            const key = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+            months.push(key);
+
+            // Show every second month label, including the most recent
+            const showLabel = (11 - i) % 2 === 0 || i === 0;
+            monthLabels.push(showLabel ? shortMonths[d.getMonth()] : '');
+          }
+
+          labels = monthLabels;
+          data = Array(12).fill(0);
+
+          for (const key of months) {
+            const keys = await AsyncStorage.getAllKeys();
+            const matching = keys.filter(k => k.startsWith('puffTimes-') && k.includes(key));
+            for (const match of matching) {
+              const json = await AsyncStorage.getItem(match);
+              if (json) {
+                try {
+                  const parsed = JSON.parse(json);
+                  entries.push(...parsed);
+                } catch {}
+              }
+            }
+          }
+
+          months.forEach((month, i) => {
+            const count = entries.filter(e => e.time.startsWith(month)).length;
+            data[i] = count;
+          });
         }
 
         for (const date of dates) {
@@ -185,21 +284,27 @@ const StatsScreen = () => {
 
       };
 
-      const [day, week, month] = await Promise.all([
+      const [day, week, month, year] = await Promise.all([
         fetchData('day'),
         fetchData('week'),
         fetchData('month'),
+        fetchData('year'),
       ]);
 
-      setChartDataMap({ day, week, month });
+      setChartDataMap({ day, week, month, year });
     };
 
     loadAllCharts();
-  }, []);
 
-  useEffect(() => {
-    const calculateStatsForPeriod = async (period: 'day' | 'week' | 'month') => {
-      const now = new Date();
+    return () => {}; // cleanup if needed
+    }, [])
+  );
+
+  useFocusEffect(
+  React.useCallback(() => {
+    let isActive = true; // prevent state updates if screen is unfocused
+
+    const calculateStatsForPeriod = async (period: 'day' | 'week' | 'month' | 'year') => {
       const viewStart = new Date();
       const periodLength = period === 'day' ? 1 : period === 'week' ? 7 : 30;
       const compareSingleDays = period === 'day';
@@ -208,26 +313,23 @@ const StatsScreen = () => {
       const prevDates: string[] = [];
 
       if (compareSingleDays) {
-      // current: yesterday, previous: two days ago
-      const today = new Date();
-      currentDates.push(today.toISOString().split('T')[0]);
+        const today = new Date();
+        currentDates.push(today.toISOString().split('T')[0]);
 
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      prevDates.push(yesterday.toISOString().split('T')[0]);
-    } else {
-      for (let i = 0; i < periodLength; i++) {
-        const d = new Date(viewStart);
-        d.setDate(viewStart.getDate() - periodLength + 1 + i); // ✅ includes today
-        currentDates.push(d.toISOString().split('T')[0]);
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        prevDates.push(yesterday.toISOString().split('T')[0]);
+      } else {
+        for (let i = 0; i < periodLength; i++) {
+          const d = new Date(viewStart);
+          d.setDate(viewStart.getDate() - periodLength + 1 + i);
+          currentDates.push(d.toISOString().split('T')[0]);
 
-        const pd = new Date(viewStart);
-        pd.setDate(viewStart.getDate() - 2 * periodLength + 1 + i);
-        prevDates.push(pd.toISOString().split('T')[0]);
+          const pd = new Date(viewStart);
+          pd.setDate(viewStart.getDate() - 2 * periodLength + 1 + i);
+          prevDates.push(pd.toISOString().split('T')[0]);
+        }
       }
-    }
-
-
 
       let currentCount = 0;
       let prevCount = 0;
@@ -256,19 +358,21 @@ const StatsScreen = () => {
         prevCount === 0 && currentCount === 0
           ? 0
           : prevCount === 0
-            ? 0
-            : Math.round(((currentCount - prevCount) / prevCount) * 100);
+          ? 0
+          : Math.round(((currentCount - prevCount) / prevCount) * 100);
 
-      // Calculate days since first login for average
       const today = new Date();
-      const daysSinceStart = Math.max(
-        Math.floor((today.getTime() - firstLoginDate.getTime()) / (1000 * 60 * 60 * 24)),
-        1
-      );
+      const daysSinceStart = firstLoginDate
+        ? Math.max(
+            Math.floor((today.getTime() - firstLoginDate.getTime()) / (1000 * 60 * 60 * 24)),
+            1
+          )
+        : 1;
 
-      const avg = period === 'day'
-        ? totalPuffsRecorded / daysSinceStart
-        : period === 'week'
+      const avg =
+        period === 'day'
+          ? totalPuffsRecorded / daysSinceStart
+          : period === 'week'
           ? totalPuffsRecorded / Math.ceil(daysSinceStart / 7)
           : totalPuffsRecorded / Math.ceil(daysSinceStart / 30);
 
@@ -280,17 +384,69 @@ const StatsScreen = () => {
     };
 
     const loadAllStats = async () => {
-      const [day, week, month] = await Promise.all([
+      const [day, week, month, year] = await Promise.all([
         calculateStatsForPeriod('day'),
         calculateStatsForPeriod('week'),
         calculateStatsForPeriod('month'),
+        calculateStatsForPeriod('year'),
       ]);
 
-      setStatsMap({ day, week, month });
+      if (isActive) {
+        setStatsMap({ day, week, month, year });
+      }
+    };
+
+    const calculateAmountSavedForPeriod = (
+      period: 'day' | 'week' | 'month' | 'year',
+      periodPuffs: number,
+      avgDailyPuffs: number
+    ) => {
+      const days = period === 'day' ? 1 : period === 'week' ? 7 : period === 'month' ? 30 : 365;
+      const expectedPuffs = avgDailyPuffs * days;
+      const originalCost = (expectedPuffs / 500) * 10;
+      const adjustedCost = (periodPuffs / 500) * 10;
+      return parseFloat((originalCost - adjustedCost).toFixed(2));
+    };
+
+    const calculateAmountSavedAll = () => {
+      const avgDaily = avgDailyPuffsFromUser ?? (totalPuffsRecorded / daysSinceLogin);
+      const map = {
+        day: calculateAmountSavedForPeriod(
+          'day',
+          chartDataMap.day.data.reduce((a, b) => a + b, 0),
+          avgDaily
+        ),
+        week: calculateAmountSavedForPeriod(
+          'week',
+          chartDataMap.week.data.reduce((a, b) => a + b, 0),
+          avgDaily
+        ),
+        month: calculateAmountSavedForPeriod(
+          'month',
+          chartDataMap.month.data.reduce((a, b) => a + b, 0),
+          avgDaily
+        ),
+        year: calculateAmountSavedForPeriod(
+          'year',
+          chartDataMap.year.data.reduce((a, b) => a + b, 0),
+          avgDaily
+        ),
+      };
+
+      if (isActive) {
+        setSavedMap(map);
+      }
     };
 
     loadAllStats();
-  }, [firstLoginDate, totalPuffsRecorded]);
+    calculateAmountSavedAll();
+
+    return () => {
+      isActive = false; // cancel updates after unmount
+    };
+  }, []) // ✅ empty deps: runs only on screen focus
+);
+
 
   useEffect(() => {
     const getPrevPeriodKeyDates = () => {
@@ -337,16 +493,20 @@ const StatsScreen = () => {
   }, [viewPeriod, viewStartDate]);
 
 
-  useEffect(() => {
+  useEffect(
+    React.useCallback(() => {
     const calculateTotalPuffs = async () => {
       try {
         const keys = await AsyncStorage.getAllKeys();
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date();
+        const todayKey = today.toISOString().split('T')[0];
+
         const puffKeys = keys.filter(key => {
           if (!key.startsWith('puffTimes-')) return false;
           const datePart = key.split('puffTimes-')[1];
-          return datePart <= today; // ✅ ignore future entries
+          return new Date(datePart) <= today;
         });
+
 
 
         let total = 0;
@@ -370,23 +530,56 @@ const StatsScreen = () => {
     };
 
     calculateTotalPuffs();
+    
+    return () => {}; // cleanup if needed
+  }, [])
+);
+
+
+  useEffect(() => {
+    const loadAvgDailyPuffs = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('avgDailyPuffs');
+        if (stored !== null) {
+          const parsed = parseFloat(stored);
+          if (!isNaN(parsed)) {
+            setAvgDailyPuffsFromUser(parsed);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load avgDailyPuffs:', error);
+      }
+    };
+
+    loadAvgDailyPuffs();
   }, []);
+
 
 
   const cardData = useMemo(() => {
     const totalPeriodPuffs = chartDataMap[viewPeriod].data.reduce((sum, v) => sum + v, 0);
 
-    const today = new Date();
-    const daysSinceStart = Math.max(
-      Math.floor((today.getTime() - firstLoginDate.getTime()) / (1000 * 60 * 60 * 24)),
-      1
-    );
+    // Calculate days since first login for average
+      const today = new Date();
+      const daysSinceStart = firstLoginDate
+        ? Math.max(
+            Math.floor((today.getTime() - firstLoginDate.getTime()) / (1000 * 60 * 60 * 24)),
+            1
+          )
+        : 1;
 
-    const avgPerPeriod = viewPeriod === 'day'
-      ? totalPuffsRecorded / daysSinceStart
-      : viewPeriod === 'week'
-        ? totalPuffsRecorded / Math.ceil(daysSinceStart / 7)
-        : totalPuffsRecorded / Math.ceil(daysSinceStart / 30);
+    const avgDailyPuffs = avgDailyPuffsFromUser ?? (totalPuffsRecorded / daysSinceStart);
+    const expectedPeriodPuffs =
+      viewPeriod === 'day'
+        ? avgDailyPuffs * 1
+        : viewPeriod === 'week'
+          ? avgDailyPuffs * 7
+          : avgDailyPuffs * 30;
+
+    const originalCost = (expectedPeriodPuffs / 500) * 10;
+    const adjustedCost = (totalPeriodPuffs / 500) * 10;
+    const amountSaved = parseFloat((originalCost - adjustedCost).toFixed(2));
+
 
     const change =
       prevPeriodPuffCount === null
@@ -400,7 +593,7 @@ const StatsScreen = () => {
 
     return {
       totalPeriodPuffs,
-      avgPerPeriod: Math.round(avgPerPeriod),
+      amountSaved,
       allTime: totalPuffsRecorded,
       changePercent: change,
     };
@@ -436,26 +629,20 @@ const StatsScreen = () => {
     return []; // fallback
   }, [viewPeriod, viewStartDate]);
 
-  const daysSinceLogin = useMemo(() => {
-    const today = new Date();
-    return Math.max(
-      Math.floor((today.getTime() - firstLoginDate.getTime()) / (1000 * 60 * 60 * 24)),
-      1
-    );
-  }, [firstLoginDate]);
 
 
 
-  const handlePeriodChange = (period: 'day' | 'week' | 'month') => {
+  const handlePeriodChange = (period: 'day' | 'week' | 'month' | 'year') => {
     setViewPeriod(period);
 
     const today = new Date();
     if (period === 'day') {
-      today.setDate(today.getDate() - 1); // still show yesterday for day view
+      today.setDate(today.getDate() - 1);
     }
 
     setViewStartDate(today);
   };
+
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -477,15 +664,78 @@ const StatsScreen = () => {
 
   return (
     <View style={[styles.container, { flex: 1 }]}>
-      <View style={styles.titleContainer}>
-        <Text style={styles.appTitle}>
-          <Text style={styles.freeText}>Puff</Text>
-          <Text style={styles.vapeText}>Daddy</Text>
-        </Text>
-        <Text style={{ color: '#ffffff', fontSize: 14, marginTop: 4 }}>
-          Logged in for {daysSinceLogin} {daysSinceLogin === 1 ? 'day' : 'days'}
-        </Text>
+
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => scrollToView('day')}
+          style={[
+            styles.periodButton,
+            viewPeriod === 'day' && styles.activePeriodButton, // Highlight active
+          ]}
+        >
+          <Text
+            style={[
+              styles.periodButtonText,
+              viewPeriod === 'day' && styles.activePeriodButtonText,
+            ]}
+          >
+            1 Day
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => scrollToView('week')}
+          style={[
+            styles.periodButton,
+            viewPeriod === 'week' && styles.activePeriodButton, // Highlight active
+          ]}
+        >
+          <Text
+            style={[
+              styles.periodButtonText,
+              viewPeriod === 'week' && styles.activePeriodButtonText,
+            ]}
+          >
+            7 Days
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => scrollToView('month')}
+          style={[
+            styles.periodButton,
+            viewPeriod === 'month' && styles.activePeriodButton, // Highlight active
+          ]}
+        >
+          <Text
+            style={[
+              styles.periodButtonText,
+              viewPeriod === 'month' && styles.activePeriodButtonText,
+            ]}
+          >
+            30 Days
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => scrollToView('year')}
+          style={[
+            styles.periodButton,
+            viewPeriod === 'year' && styles.activePeriodButton, // Highlight active
+          ]}
+        >
+          <Text
+            style={[
+              styles.periodButtonText,
+              viewPeriod === 'year' && styles.activePeriodButtonText,
+            ]}
+          >
+            365 Days
+          </Text>
+        </TouchableOpacity>
       </View>
+
+
       <View style={{ minHeight: 540, justifyContent: 'flex-start' }}>
       <View style={styles.chartContainer}>
         <View style={{ height: 500 }} onLayout={(e) => {
@@ -504,7 +754,7 @@ const StatsScreen = () => {
             scrollEventThrottle={16}
             onMomentumScrollEnd={(event) => {
               const index = Math.round(event.nativeEvent.contentOffset.x / scrollPageWidth);
-              const period = ['day', 'week', 'month'][index] as 'day' | 'week' | 'month';
+              const period = ['day', 'week', 'month', 'year'][index] as 'day' | 'week' | 'month' | 'year';
 
               // Only update if changed
               if (period !== viewPeriod) {
@@ -513,7 +763,7 @@ const StatsScreen = () => {
             }}
 
           >
-            {(['day', 'week', 'month'] as const).map((period) => {
+            {(['day', 'week', 'month', 'year'] as const).map((period) => {
               const { data, labels } = chartDataMap[period];
 
               /*console.log('Rendering chart for', period, {
@@ -535,39 +785,62 @@ const StatsScreen = () => {
 
 
               return (
-                <View key={period} style={{ width: scrollPageWidth, justifyContent: 'center' }}>
+                <View
+                  key={period}
+                  style={{
+                  width: scrollPageWidth,
+                  alignItems: 'center', // ✅ THIS centers inner content
+                  }}
+                  >
                   <Text style={styles.periodTitle}>
                     {period === 'day'
                       ? 'Today'
                       : period === 'week'
                         ? 'Last 7 days'
-                        : 'Last 30 days'}
+                      : period === 'month'
+                        ? 'Last 30 days'
+                        : 'Last Year'}
                   </Text>
-                    <LineChart
-                      data={{
-                        labels,
-                        datasets: [{ data }],
-                      }}
-                      width={chartWidth}
-                      height={220}
-                      bezier
-                      yAxisInterval={1}
-                      fromZero={true}
-                      withDots={false}
-                      withHorizontalLines={false}
-                      withVerticalLines={false}
-                      chartConfig={{
-                        backgroundColor: '#161618',
-                        backgroundGradientFrom: '#161618',
-                        backgroundGradientTo: '#161618',
-                        decimalPlaces: 0,
-                        color: () => `rgba(255, 0, 0, 1)`,
-                        labelColor: () => `rgba(255, 255, 255, 1)`,
-                        propsForBackgroundLines: { stroke: '#ffffff' },
-                        style: { borderRadius: 16 },
-                      }}
-                      style={{ marginLeft: 0 }}
-                    />
+
+                      <View style={{ flex: 1, alignItems: 'center' }}>
+                        <LineChart
+                          data={{
+                            labels: labels,
+                            datasets: [
+                              {
+                                data: data,
+                                color: () => '#EF4444',
+                                strokeWidth: 2,
+                              },
+                            ],
+                          }}
+                          width={scrollPageWidth * 0.9}
+                          height={220}
+                          withDots={false}
+                          withInnerLines={false}
+                          withOuterLines={false}
+                          segments={5}
+                          bezier
+                          chartConfig={{
+                            backgroundColor: '#000',
+                            backgroundGradientFrom: '#000',
+                            backgroundGradientTo: '#000',
+                            decimalPlaces: 0,
+                            fillShadowGradient: 'transparent',
+                            fillShadowGradientOpacity: 0,
+                            color: () => `#ffffff`,
+                            labelColor: () => `#ffffff`,
+                            style: {
+                              borderRadius: 16,
+                            },
+                          }}
+                          style={{
+                            marginVertical: 8,
+                            borderRadius: 16,
+                          }}
+                        />
+                      </View>
+
                 
                    
 
@@ -578,12 +851,19 @@ const StatsScreen = () => {
                   <Text style={styles.statValue}>{total}</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>Avg/{period}</Text>
-                  <Text style={styles.statValue}>{Math.round(avg)}</Text>
-                </View>
-                <View style={styles.statCard}>
                   <Text style={styles.statLabel}>All Time</Text>
                   <Text style={styles.statValue}>{allTime}</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statLabel}>Saved</Text>
+                  <Text
+                    style={[
+                      styles.statValue,
+                      { color: savedMap[period] >= 0 ? '#00d600' : '#e50000' },
+                    ]}
+                  >
+                    ${Math.abs(savedMap[period]).toFixed(2)}
+                  </Text>
                 </View>
                 {change !== null && (
                   <View style={styles.statCard}>
@@ -592,7 +872,9 @@ const StatsScreen = () => {
                       ? 'vs yesterday'
                       : period === 'week'
                         ? 'vs prev 7 days'
-                        : 'vs prev 30 days'}
+                      : period === 'month'
+                        ? 'vs prev 30 days'
+                        : 'vs prev year'}
                     </Text>
                     <Text
                       style={[
@@ -618,62 +900,78 @@ const StatsScreen = () => {
           </ScrollView>
         </View>
       </View>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => scrollToView('day')} style={[styles.periodButton]}>
-          <Text style={styles.periodButtonText}>1 Day</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => scrollToView('week')} style={[styles.periodButton]}>
-          <Text style={styles.periodButtonText}>7 Days</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => scrollToView('month')} style={[styles.periodButton]}>
-          <Text style={styles.periodButtonText}>30 Days</Text>
-        </TouchableOpacity>
-      </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20, paddingBottom: 20, paddingTop: 40, backgroundColor: '#000000', alignItems: 'center' },
-  header: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
-  periodButton: { padding: 10, borderWidth: 1, borderRadius: 5, borderColor: '#212124 '},
-  periodButtonText: {color: '#ffffff'},
-  activeButton: { backgroundColor: '#e50000', color: '#ffffff' },
-  chartContainer: { alignItems: 'center' },
+  container: {
+    flex: 1,
+    paddingHorizontal: scale(20),
+    paddingBottom: verticalScale(20),
+    paddingTop: verticalScale(20),
+    backgroundColor: '#000000',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: verticalScale(20),
+  },
+  periodButton: {
+    paddingVertical: scale(6),
+    paddingHorizontal: scale(12),
+    marginHorizontal: scale(4),
+    borderRadius: scale(6),
+    backgroundColor: '#000',
+  },
+  periodButtonText: {
+    color: '#fff',
+    fontSize: scale(14),
+    fontWeight: '600',
+  },
+
+  activeButton: {
+    backgroundColor: '#e50000',
+    color: '#ffffff',
+  },
+  chartContainer: {
+    alignItems: 'center',
+  },
   statCard: {
     width: '48%',
-    backgroundColor: '#212124',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
+    backgroundColor: '#020202',
+    padding: scale(12),
+    borderRadius: scale(8),
+    marginBottom: verticalScale(12),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 2,
   },
-
   statLabel: {
     color: '#ffffff',
-    fontSize: 12,
-    marginBottom: 4,
+    fontSize: scale(12),
+    marginBottom: verticalScale(4),
+    textAlign: 'center',
   },
-
   statValue: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: scale(18),
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   periodTitle: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: scale(16),
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: verticalScale(10),
   },
   appTitle: {
-    fontSize: 28,
+    fontSize: scale(28),
     fontWeight: 'bold',
   },
   vapeText: {
@@ -683,8 +981,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   titleContainer: {
-    marginBottom: 20,
+    marginBottom: verticalScale(20),
   },
+  activePeriodButton: {
+    backgroundColor: '#ffffff',
+  },
+  activePeriodButtonText: {
+    color: '#000000',
+  },
+
 });
+
 
 export default StatsScreen;

@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, StyleProp, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, StyleProp, ViewStyle, TextStyle, FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { usePuff } from '../context/PuffContext';
 import { Animated } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { forwardRef, useImperativeHandle } from 'react';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const scale = (size: number) => (SCREEN_WIDTH / 375) * size; // 375 is base width (iPhone X)
+const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size; // 812 is base height
+
 
 
 
@@ -18,47 +27,6 @@ interface PuffEntry {
   time: string;
   strength: number;
 }
-
-// Define interface for styles to match StyleSheet.create structure
-interface AppStyles {
-  container: StyleProp<ViewStyle>;
-  titleContainer: StyleProp<ViewStyle>;
-  counterContainer: StyleProp<ViewStyle>;
-  counterCircle: StyleProp<ViewStyle>;
-  counterText: StyleProp<TextStyle>;
-  counterLabel: StyleProp<TextStyle>;
-  nicotineText: StyleProp<TextStyle>;
-  nicotineLabel: StyleProp<TextStyle>;
-  puffButton: StyleProp<ViewStyle>;
-  puffButtonText: StyleProp<TextStyle>;
-  modalOverlay: StyleProp<ViewStyle>;
-  modalContent: StyleProp<ViewStyle>;
-  modalTitle: StyleProp<TextStyle>;
-  inputRow: StyleProp<ViewStyle>;
-  inputLabel: StyleProp<TextStyle>;
-  input: StyleProp<TextStyle>;
-  inputUnit: StyleProp<TextStyle>;
-  saveButton: StyleProp<ViewStyle>;
-  saveButtonText: StyleProp<TextStyle>;
-  appTitle: StyleProp<TextStyle>;
-  vapeText: StyleProp<TextStyle>;
-  freeText: StyleProp<TextStyle>;
-  nicotineCard: StyleProp<TextStyle>;
-  cardLabel: StyleProp<TextStyle>;
-  cardValue: StyleProp<TextStyle>;
-  timerRow: StyleProp<TextStyle>;
-  timerCard: StyleProp<TextStyle>;
-  cardNumber: StyleProp<TextStyle>;
-  cardLbl: StyleProp<TextStyle>;
-}
-
-const initialChartData: ChartDataPoint[] = [
-  { time: '12 AM', value: 0 },
-  { time: '6 AM', value: 0 },
-  { time: '12 PM', value: 0 },
-  { time: '6 PM', value: 0 },
-  { time: '11 PM', value: 0 },
-];
 
 
 const formatTimeComponents = (seconds: number) => {
@@ -107,7 +75,10 @@ const getDurationText = (seconds: number): string => {
 
 
 
-const HomeScreen = ({ refreshKey }: { refreshKey: number }) => {
+const HomeScreen = (
+  { refreshKey }: { refreshKey: number },
+  ref: React.Ref<{ openNicotineModal: () => void }>
+) => {
   const { puffCount, setPuffCount } = usePuff();
   const [lifetimePuffs, setLifetimePuffs] = useState(0);
   const [nicotineStrength, setNicotineStrength] = useState('0');
@@ -115,14 +86,11 @@ const HomeScreen = ({ refreshKey }: { refreshKey: number }) => {
   const [nicotineMg, setNicotineMg] = useState(0);
   const [lifetimeNicotineMg, setLifetimeNicotineMg] = useState(0);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [chartData, setChartData] = useState<ChartDataPoint[]>(initialChartData);
   const [lastResetDate, setLastResetDate] = useState<string | null>(null);
   const [puffTrigger, setPuffTrigger] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [todayLimit, setTodayLimit] = useState<number | null>(null);
-  const [timeSinceLastPuff, setTimeSinceLastPuff] = useState(0); // in seconds
   const [lastPuffTime, setLastPuffTime] = useState<Date | null>(null);
-  const [formattedTime, setFormattedTime] = useState(formatTimeComponents(0));
   const [relativeTimeText, setRelativeTimeText] = useState('—');
   const [longestTime, setLongestTime] = useState<number>(0);
   const [showStats, setShowStats] = useState(true);
@@ -130,6 +98,185 @@ const HomeScreen = ({ refreshKey }: { refreshKey: number }) => {
   const isFocused = useIsFocused();
   const showStatsRef = useRef(true);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [puffCountLoaded, setPuffCountLoaded] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [extendedTips, setExtendedTips] = useState<string[]>([]);
+
+
+
+  const [fadeIn] = useState(new Animated.Value(0));
+
+  useImperativeHandle(ref, () => ({
+    openNicotineModal: () => setIsModalVisible(true),
+  }));
+
+
+  useEffect(() => {
+    if (puffCountLoaded) {
+      Animated.timing(fadeIn, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [puffCountLoaded]);
+
+
+  const quitTips: string[] = [
+  "Chew gum (especially minty or cinnamon) to keep your mouth busy.",
+  "Suck on hard candy or lollipops during cravings.",
+  "Eat crunchy snacks like carrots, celery, or nuts to mimic the hand-to-mouth action.",
+  "Drink cold water with a straw to keep your hands and mouth busy.",
+  "Use toothpicks or flavored toothpicks for oral fixation.",
+  "Keep a stress ball or fidget toy nearby to occupy your hands.",
+  "Use a lollipop stick (without candy) to simulate holding a vape.",
+  "Practice deep breathing exercises whenever you crave.",
+  "Use a flavored lip balm to stimulate senses around your mouth.",
+  "Brush your teeth when cravings hit – the clean feeling helps deter vaping.",
+  "Create a mantra ('I don't need it,' 'This craving will pass') and repeat it.",
+  "Visualize your vape cravings like ocean waves—rising and falling, always temporary.",
+  "Practice mindfulness meditation to stay present and reduce anxiety.",
+  "Remind yourself: the craving only lasts a few minutes.",
+  "Keep a journal of your triggers and successes.",
+  "List all the reasons you’re quitting and re-read them daily.",
+  "Record voice memos of your future self thanking you for quitting.",
+  "Join an online support forum or subreddit like r/QuitVaping.",
+  "Write down how you feel during a craving—it helps you process and resist.",
+  "Celebrate small wins (hour, day, week, etc.).",
+  "Remove all vapes, chargers, and juice from your space.",
+  "Clean your car, clothes, and room to get rid of vape smell.",
+  "Change your routine to avoid vaping triggers.",
+  "Avoid places or people that make you want to vape early on.",
+  "Spend more time in vape-free environments (museums, libraries, nature).",
+  "Keep your hands and mouth busy after meals—a common trigger.",
+  "Set up “no-vape zones” in your home or car.",
+  "Put a rubber band around your wrist and snap it gently when you crave.",
+  "Delete vape-related social media or influencer accounts.",
+  "Switch up your commute or breaks if they’re associated with vaping.",
+  "Start a light workout routine—even short walks help reduce cravings.",
+  "Drink lots of water to flush out nicotine and stay hydrated.",
+  "Track how your breathing improves over time.",
+  "Join a yoga or fitness class to stay focused and accountable.",
+  "Take up stretching or foam rolling during cravings.",
+  "Start a challenge (e.g., push-up per craving) to build strength and discipline.",
+  "Use a fitness tracker to see your health improve day by day.",
+  "Weigh yourself weekly—many notice positive physical changes.",
+  "Try running or cycling to feel how much easier it gets post-vape.",
+  "Track how long it takes for your taste and smell to return.",
+  "Eat small, healthy meals to maintain stable blood sugar.",
+  "Avoid caffeine if it triggers cravings.",
+  "Add more fruits and vegetables to your diet.",
+  "Drink herbal teas (like chamomile or peppermint) to calm yourself.",
+  "Avoid alcohol early on—a major vaping trigger for many.",
+  "Have healthy snacks available at all times.",
+  "Avoid sugary foods that spike and crash your energy.",
+  "Chew on sunflower seeds or pumpkin seeds.",
+  "Keep a smoothie mix ready to give your hands something to do.",
+  "Try spicy foods to engage your taste buds without vaping.",
+  "Download a quit vaping app to track progress.",
+  "Set phone reminders with motivational quotes or milestones.",
+  "Use a countdown or timer app to ride out cravings.",
+  "Listen to calming music or white noise when anxious.",
+  "Use an app to track money saved by not vaping.",
+  "Watch YouTube videos of ex-vapers for inspiration.",
+  "Use breathing apps to ground yourself during cravings.",
+  "Set your lock screen with your “why”.",
+  "Keep an app that reminds you of health benefits day by day.",
+  "Try hypnosis or meditation apps like Headspace or Insight Timer.",
+  "Tell friends and family you’re quitting for accountability.",
+  "Ask a friend to text or call you during cravings.",
+  "Get an accountability partner to quit with.",
+  "Post your milestones online to stay encouraged.",
+  "Join a local or online support group.",
+  "Ask people not to vape around you.",
+  "Let coworkers know you’re trying to quit to avoid peer pressure.",
+  "Celebrate with friends who support your journey.",
+  "Avoid social events early on if they make quitting harder.",
+  "Create a “craving call list”—people you can contact in tough moments.",
+  "Don’t aim for perfection—just progress.",
+  "Visualize yourself vape-free in 1 year.",
+  "Practice gratitude daily—write down 3 good things.",
+  "Think of cravings as passing clouds, not commands.",
+  "Remind yourself that relapse is not failure—it’s feedback.",
+  "Reward yourself with small treats after each milestone.",
+  "Track how your mood improves without nicotine.",
+  "Imagine your lungs healing each day.",
+  "See quitting as self-care, not self-deprivation.",
+  "Remember: cravings peak and fall—don’t give them power.",
+  "Take up journaling or creative writing.",
+  "Start a new hobby (drawing, music, coding) to keep busy.",
+  "Try adult coloring books or paint-by-number kits.",
+  "Learn to cook new recipes.",
+  "Start gardening or houseplant care.",
+  "Practice a musical instrument.",
+  "Do a jigsaw puzzle or brain game.",
+  "Learn a new language on Duolingo.",
+  "Play with pets—they help relieve stress.",
+  "Take up photography or film.",
+  "Save the money you’d spend on vape juice in a jar or app.",
+  "Calculate your yearly vape spending—shockingly motivating.",
+  "Reward yourself with a monthly treat from vape savings.",
+  "Set a financial goal (trip, gadget, outfit) with vape money.",
+  "Start a visual savings tracker (e.g., graph on your wall).",
+  "Reflect monthly on your growth.",
+  "Keep your reasons visible—mirror, fridge, lock screen.",
+  "Mentor or support others trying to quit—it strengthens your resolve.",
+  "Revisit your first week and how far you’ve come.",
+  "Remind yourself: You are stronger than the craving. Always."
+];
+
+
+  const [randomTip, setRandomTip] = useState('');
+  const [showTipsModal, setShowTipsModal] = useState(false);
+
+  useEffect(() => {
+    const randomIndex = Math.floor(Math.random() * quitTips.length);
+    setRandomTip(quitTips[randomIndex]);
+  }, []);
+
+  const getRandomTips = (tips: string[], count: number): string[] => {
+    const shuffled = [...tips].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  };
+
+  const [carouselTips, setCarouselTips] = useState<string[]>([]);
+
+  useEffect(() => {
+    const tips = getRandomTips(quitTips, 5);
+    setCarouselTips(tips);
+    setExtendedTips([tips[tips.length - 1], ...tips, tips[0]]);
+    setTipIndex(0);
+  }, []);
+
+
+
+  const [tipIndex, setTipIndex] = useState(0);
+  const flatListRef = useRef<FlatList<string>>(null);
+
+  useEffect(() => {
+    if (carouselTips.length === 0) return;
+
+    const interval = setInterval(() => {
+      let nextIndex = tipIndex + 2; // +1 for clone offset, +1 for next
+
+      if (nextIndex >= extendedTips.length) {
+        nextIndex = 1; // jump back to start
+      }
+
+      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [tipIndex, carouselTips, extendedTips]);
+
+
+  const TIP_ITEM_WIDTH = SCREEN_WIDTH - scale(48);
+
+
+
+
+
+
 
 
 
@@ -142,7 +289,6 @@ const HomeScreen = ({ refreshKey }: { refreshKey: number }) => {
       try {
         const savedLifetimePuffs = await AsyncStorage.getItem('lifetimePuffs');
         const savedLifetimeNicotineMg = await AsyncStorage.getItem('lifetimeNicotineMg');
-        const savedChartData = await AsyncStorage.getItem('chartData');
         const savedLastReset = await AsyncStorage.getItem('lastResetDate');
         const savedDailyLimit = await AsyncStorage.getItem('dailyLimit');
         const savedNicotineStrength = await AsyncStorage.getItem('nicotineStrength');
@@ -184,19 +330,16 @@ const HomeScreen = ({ refreshKey }: { refreshKey: number }) => {
           setLifetimeNicotineMg(newLifetimeNicotineMg);
           setPuffCount(0);
           setNicotineMg(0);
-          setChartData(initialChartData);
           setLastResetDate(today);
 
           
           await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(puffTimes));
           await AsyncStorage.setItem('lifetimePuffs', newLifetimePuffs.toString());
           await AsyncStorage.setItem('lifetimeNicotineMg', newLifetimeNicotineMg.toString());
-          await AsyncStorage.setItem('chartData', JSON.stringify(initialChartData));
           await AsyncStorage.setItem('lastResetDate', today);
         } else {
           setLifetimePuffs(savedLifetimePuffs ? parseInt(savedLifetimePuffs, 10) : 0);
           setLifetimeNicotineMg(savedLifetimeNicotineMg ? parseFloat(savedLifetimeNicotineMg) : 0);
-          setChartData(savedChartData ? JSON.parse(savedChartData) : initialChartData);
           const savedNicotineMg = await AsyncStorage.getItem(`nicotineMg-${today}`);
           setNicotineMg(savedNicotineMg ? parseFloat(savedNicotineMg) : 0);
 
@@ -211,43 +354,6 @@ const HomeScreen = ({ refreshKey }: { refreshKey: number }) => {
 
     loadData();
   }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const timeInSeconds = getTimeSinceLastPuff();
-      setFormattedTime(formatTimeComponents(timeInSeconds));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [lastPuffTime]);
-
-
-  useEffect(() => {
-    const computeNicotineMg = async () => {
-      const today = new Date().toISOString().split('T')[0];
-      const savedPuffTimes = await AsyncStorage.getItem(`puffTimes-${today}`);
-      const puffTimes = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
-
-      const parsedStrength = parseFloat(nicotineStrength) || 0;
-
-      const todayPuffs = puffTimes.filter((entry: string | PuffEntry) => {
-        const time = typeof entry === 'string' ? entry : entry.time;
-        return new Date(time).toISOString().split('T')[0] === today;
-      });
-
-      const totalMg = todayPuffs.reduce((sum: number, entry: string | PuffEntry) => {
-        const puffStrength = typeof entry === 'string' ? parsedStrength : entry.strength;
-        return sum + puffStrength;
-      }, 0);
-
-      console.log('Computed nicotineMg for today:', totalMg, 'using strength:', parsedStrength);
-      //setNicotineMg(totalMg);
-    };
-
-    if (isInitialized) {
-      computeNicotineMg();
-    }
-  }, [nicotineStrength, puffTrigger, isInitialized]);
 
   const [quitDate, setQuitDate] = useState<string>('Not set');
 
@@ -321,8 +427,8 @@ useEffect(() => {
     setLastPuffTime(now);
     const newNicotineMg = nicotineMg + nicotinePerPuff;
     setNicotineMg(newNicotineMg);
-    setPuffCount(prev => prev + 1);
-    setPuffTrigger(prev => prev + 1);
+    setPuffCount(prev => prev + 1); // 🔥 Add this back in
+    setPuffTrigger((puffTrigger + 1));
 
     const secondsSinceLastPuff = lastPuffTime ? Math.floor((now.getTime() - lastPuffTime.getTime()) / 1000) : 0;
 
@@ -353,6 +459,22 @@ useEffect(() => {
     }
   };
 
+  const animatePuffButton = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.9, // shrink to 90%
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+
 
 
   const handleCirclePress = () => {
@@ -362,17 +484,18 @@ useEffect(() => {
   const handleSave = async () => {
     const strength = parseFloat(nicotineStrength);
 
-    if (nicotineStrength && (isNaN(strength) || strength < 0)) {
-      Alert.alert('Invalid input', 'Please enter a valid nicotine strength.');
+    if (
+      nicotineStrength.trim() === '' ||
+      isNaN(strength) ||
+      strength < 0
+    ) {
+      Alert.alert('Invalid input', 'Please enter a valid number that is 0 or more.');
       return;
     }
 
     try {
-      // ✅ Save explicitly, not via useEffect
       await AsyncStorage.setItem('nicotineStrength', nicotineStrength);
-
       console.log('Saved nicotineStrength to storage:', nicotineStrength);
-
       setIsModalVisible(false);
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -380,9 +503,6 @@ useEffect(() => {
     }
   };
 
-  const handlePuffCountUpdate = (count: number) => {
-    setPuffCount(count);
-  };
 
 
 
@@ -393,16 +513,19 @@ useEffect(() => {
         const savedPuffTimes = await AsyncStorage.getItem(`puffTimes-${today}`);
         const puffTimes = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
         setPuffCount(puffTimes.length);
+        setPuffCountLoaded(true); // ✅ Now it's safe to show
       } catch (err) {
         console.error('Failed to load today\'s puff count:', err);
         setPuffCount(0);
+        setPuffCountLoaded(true); // Still allow render, even if 0
       }
     };
 
     if (isInitialized) {
       loadTodayPuffCount();
     }
-  }, [isInitialized, puffTrigger]);
+  }, [isInitialized]);
+
 
   useEffect(() => {
     const restoreLastPuff = async () => {
@@ -495,78 +618,47 @@ useEffect(() => {
 
 
 
-
-
   return (
     <View style={styles.container}>
-      <View style={styles.titleContainer}>
-        <Text style={styles.appTitle}>
-          <Text style={styles.freeText}>Puff</Text>
-          <Text style={styles.vapeText}>Daddy</Text>
-        </Text>
-      </View>
       <TouchableOpacity onPress={handleCirclePress} style={styles.counterContainer}>
-        <View style={styles.counterCircle}>
-          {isStrengthConfigured ? (
-            // If configured, show data without animation
-            <>
-              <Text style={styles.counterText}>{puffCount}</Text>
-              <Text style={styles.counterLabel}>PUFFS TODAY</Text>
-              <Text style={[styles.nicotineText, { fontWeight: 'bold', color: '#E50000' }]}>
-                {formattedNicotine}
-              </Text>
-              <Text style={[styles.nicotineLabel]}>Nicotine</Text>
-            </>
-          ) : (
-            <>
-              <Animated.View
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: fadeAnim,
-              }}
-            >
-              {showStats ? (
-                <>
-                  <Text style={styles.counterText}>{puffCount}</Text>
-                  <Text style={styles.counterLabel}>PUFFS TODAY</Text>
-                  <Text
-                    style={[
-                      styles.nicotineText,
-                      { fontWeight: 'bold', color: '#E50000' },
-                    ]}
-                  >
-                    {formattedNicotine}
-                  </Text>
-                  <Text style={styles.nicotineLabel}>Nicotine</Text>
-                </>
-              ) : (
-                <Text
-                  style={[styles.counterLabel, { fontSize: 16, textAlign: 'center' }]}
-                >
-                  Tap to Configure
-                </Text>
-              )}
+        {isStrengthConfigured ? (
+          <>
+            <Animated.View style={{ opacity: fadeIn }}>
+              <Text style={[styles.counterText, { color: '#fff' }]}>{puffCount}</Text>
             </Animated.View>
-
-            </>
-          )}
-        </View>
+            <Text style={[styles.counterLabel, { color: '#fff' }]}>PUFFS TODAY</Text>
+          </>
+        ) : (
+          <Animated.View
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: fadeAnim,
+            }}
+          >
+            {showStats ? (
+              <>
+                <Text style={[styles.counterText, { color: '#fff' }]}>{puffCount}</Text>
+                <Text style={[styles.counterLabel, { color: '#fff' }]}>PUFFS TODAY</Text>
+              </>
+            ) : (
+              <Text
+                style={[styles.counterLabel, { fontSize: scale(16), textAlign: 'center', color: '#fff' }]}
+              >
+                Tap to Configure
+              </Text>
+            )}
+          </Animated.View>
+        )}
       </TouchableOpacity>
-
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20, width: '100%' }}>
         <View style={styles.timerCard}>
           <Text style={styles.cardLbl}>Puff Limit</Text>
           <Text style={styles.cardNumber}>{todayLimit ?? 'Not Set'}</Text>
         </View>
         <View style={styles.timerCard}>
-          <Text style={styles.cardLbl}>Quit Date</Text>
-          <Text style={styles.cardNumber}>{quitDate}</Text>
+          <Text style={styles.cardLbl}>Nicotine</Text>
+          <Text style={styles.cardNumber}>{formattedNicotine}</Text>
         </View>
         <View style={styles.timerCard}>
           <Text style={styles.cardLbl}>Last Puff</Text>
@@ -577,10 +669,82 @@ useEffect(() => {
           <Text style={styles.cardNumber}>{getDurationText(Math.max(longestTime, currentElapsed))}</Text>
         </View>
       </View>
-      <TouchableOpacity style={styles.puffButton} onPress={handlePuff}>
-        <Ionicons name="add" size={24} color="#fff" />
-        <Text style={styles.puffButtonText}>PUFF</Text>
-      </TouchableOpacity>
+
+
+      <View style={styles.tipCard}>
+        <Text style={styles.tipTitle}>Quitting Tips</Text>
+        <FlatList
+          data={extendedTips}
+          ref={flatListRef}
+          scrollEnabled={false}
+          keyExtractor={(_, index) => index.toString()}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={1} // Start at the real first tip
+          getItemLayout={(_, index) => ({
+            length: TIP_ITEM_WIDTH,
+            offset: TIP_ITEM_WIDTH * index,
+            index,
+          })}
+          onMomentumScrollEnd={(event) => {
+            const offset = event.nativeEvent.contentOffset.x;
+            const index = Math.round(offset / TIP_ITEM_WIDTH);
+
+            if (index === 0) {
+              // scrolled to fake first (last clone)
+              flatListRef.current?.scrollToIndex({ index: carouselTips.length, animated: false });
+              setTipIndex(carouselTips.length - 1);
+            } else if (index === extendedTips.length - 1) {
+              // scrolled to fake last (first clone)
+              flatListRef.current?.scrollToIndex({ index: 1, animated: false });
+              setTipIndex(0);
+            } else {
+              setTipIndex(index - 1);
+            }
+          }}
+          renderItem={({ item }) => (
+            <View
+              style={{
+                width: TIP_ITEM_WIDTH,
+                justifyContent: 'flex-start',
+                alignItems: 'flex-start',
+              }}
+            >
+              <Text style={[styles.tipText, { textAlign: 'left' }]}>
+                {item}
+              </Text>
+            </View>
+          )}
+        />
+      </View>
+
+
+      <LinearGradient
+        colors={['#EF4444', '#3B82F6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.puffGradient}
+      >
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <TouchableOpacity
+            onPress={() => {
+              animatePuffButton(); // 🔁 play animation
+              handlePuff();        // 🫧 do puff logic
+            }}
+            style={styles.puffButton}
+            activeOpacity={1}
+          >
+            <Ionicons name="add" size={30} color="#000" />
+            <Text style={styles.puffButtonText}>PUFF</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </LinearGradient>
+
+
+
+
+
 
 
 
@@ -593,11 +757,11 @@ useEffect(() => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Set Strength</Text>
+            <Text style={styles.modalTitle}>Set Nicotine Strength</Text>
             <View style={styles.inputRow}>
               <TextInput
                 style={styles.input}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 value={nicotineStrength}
                 onChangeText={setNicotineStrength}
                 placeholder="e.g., 3"
@@ -610,31 +774,31 @@ useEffect(() => {
           </View>
         </View>
       </Modal>
+
     </View>
   );
 };
 
-const styles: AppStyles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0C0C0C',
+    backgroundColor: '#000',
     alignItems: 'center',
-    paddingTop: 40,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: verticalScale(0),
+    paddingHorizontal: scale(24),
+    paddingBottom: verticalScale(30),
   },
   titleContainer: {
-    marginBottom: 20,
+    marginBottom: verticalScale(20),
   },
   counterContainer: {
-    paddingTop: 40,
+    paddingTop: verticalScale(40),
     alignItems: 'center',
   },
   counterCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#212124',
+    width: scale(200),
+    height: scale(200),
+    borderRadius: scale(100),
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
@@ -644,43 +808,42 @@ const styles: AppStyles = StyleSheet.create({
     shadowRadius: 4,
   },
   counterText: {
-    fontSize: 50,
+    fontSize: scale(60),
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#000',
   },
   counterLabel: {
-    fontSize: 16,
-    color: '#ffffff',
+    fontSize: scale(18),
+    color: '#000',
   },
   nicotineText: {
-    fontSize: 18,
-    color: `rgba(229, 0, 0, 1)`,
-    marginTop: 12,
+    fontSize: scale(16),
+    color: 'rgba(229, 0, 0, 1)',
+    marginTop: verticalScale(12),
   },
   nicotineLabel: {
-    fontSize: 14,
-    color: '#ffffff',
+    fontSize: scale(14),
+    color: '#000',
+  },
+  puffGradient: {
+    width: '100%',
+    borderRadius: scale(30),
+    marginTop: verticalScale(30),
   },
   puffButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e50000',
-    paddingVertical: 20,
-    paddingHorizontal: 50,
-    marginTop: 30,
-    borderRadius: 25,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    paddingVertical: verticalScale(15),
+    paddingHorizontal: scale(40),
+    borderRadius: scale(30),
+    width: '100%',
   },
   puffButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 10,
+    color: '#000',
+    fontSize: scale(20),
+    fontWeight: '600',
+    marginLeft: scale(10),
   },
   modalOverlay: {
     flex: 1,
@@ -689,52 +852,73 @@ const styles: AppStyles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#FFF',
-    padding: 20,
-    borderRadius: 10,
-    width: '80%',
+    backgroundColor: '#1e1e1e',
+    paddingVertical: verticalScale(30),
+    paddingHorizontal: scale(30),
+    borderRadius: scale(20),
+    width: '90%',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 10,
+    elevation: 10,
   },
+
   modalTitle: {
-    fontSize: 20,
+    fontSize: scale(24),
     fontWeight: 'bold',
-    marginBottom: 20,
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: verticalScale(20),
   },
+
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
-    width: '100%',
+    marginBottom: verticalScale(15),
+    width: '80%',
   },
   inputLabel: {
-    fontSize: 16,
-    marginRight: 10,
+    fontSize: scale(16),
+    marginRight: scale(10),
     flex: 1,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#CCC',
-    borderRadius: 5,
-    padding: 5,
+    borderColor: '#fff',
+    borderRadius: scale(10),
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: scale(15),
     flex: 1,
     textAlign: 'center',
+    fontSize: scale(16),
+    backgroundColor: '#1a1a1a',
+    color: '#fff'
   },
+
   inputUnit: {
-    fontSize: 16,
-    marginLeft: 5,
+    fontSize: scale(16),
+    marginLeft: scale(5),
+    color: '#ffffff',
   },
   saveButton: {
-    backgroundColor: '#E0E0E0',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
+    backgroundColor: '#fff',
+    paddingVertical: verticalScale(15),
+    paddingHorizontal: scale(40),
+    borderRadius: scale(30),
+    marginTop: verticalScale(10),
+    width: '100%',
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: scale(16),
+    fontWeight: 'bold',
+    color: '#000',
+    textAlign: 'center',
   },
+
   appTitle: {
-    fontSize: 28,
+    fontSize: scale(28),
     fontWeight: 'bold',
   },
   vapeText: {
@@ -745,53 +929,98 @@ const styles: AppStyles = StyleSheet.create({
   },
   nicotineCard: {
     backgroundColor: '#1e1e1e',
-    borderRadius: 10,
-    padding: 15,
-    marginTop: 20,
+    borderRadius: scale(10),
+    padding: scale(15),
+    marginTop: verticalScale(20),
     width: '90%',
     alignItems: 'center',
   },
   cardLabel: {
-    fontSize: 16,
+    fontSize: scale(16),
     color: '#CCCCCC',
-    marginBottom: 5,
+    marginBottom: verticalScale(5),
   },
   cardValue: {
-    fontSize: 20,
+    fontSize: scale(20),
     fontWeight: 'bold',
     color: '#E50000',
   },
   timerRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 20,
+    marginTop: verticalScale(20),
     width: '100%',
   },
   timerCard: {
     alignItems: 'center',
     backgroundColor: '#020202',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+    paddingVertical: verticalScale(15),
+    paddingHorizontal: scale(10),
+    borderRadius: scale(10),
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     width: '48%',
-    marginBottom: 12,
+    marginBottom: verticalScale(12),
   },
   cardNumber: {
-    fontSize: 15,
+    fontSize: scale(15),
     fontWeight: 'bold',
     color: '#ffffff',
   },
   cardLbl: {
-    fontSize: 12,
+    fontSize: scale(13),
     color: '#ffffff',
-    marginTop: 5,
+    marginTop: verticalScale(5),
   },
-
+  tipCard: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: scale(10),
+    padding: scale(20),
+    marginTop: verticalScale(20),
+    width: '100%',
+    height: verticalScale(120),
+  },
+  tipTitle: {
+    fontSize: scale(16),
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: verticalScale(10),
+  },
+  tipText: {
+    fontSize: scale(14),
+    color: '#ccc',
+    marginBottom: verticalScale(10),
+    flexWrap: 'wrap',
+    flexShrink: 1,
+    width: '85%',
+  },
+  tipButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(6),
+    borderRadius: scale(5),
+  },
+  tipButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: scale(14),
+  },
+  tipListItem: {
+    color: '#333',
+    fontSize: scale(14),
+    marginBottom: verticalScale(5),
+  },
+  
+  gradientButton: {
+    width: '100%',
+    borderRadius: scale(30),
+    marginTop: verticalScale(20),
+  },
 });
 
-export default HomeScreen;
+
+export default forwardRef(HomeScreen);
