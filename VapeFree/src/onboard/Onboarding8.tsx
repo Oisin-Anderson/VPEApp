@@ -14,14 +14,15 @@ import { usePuff } from '../context/PuffContext';
 import ProgressBar from '../components/ProgressBar';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const scale = (size: number) => (SCREEN_WIDTH / 375) * size; // 375 is base width (iPhone X)
+const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size; // 812 is base height
 
 
 const options = [
   '1 week',
-  '2 weeks',
   '1 month',
   '3 months',
-  '6 months',
   'Other(Min 1 week)',
 ];
 
@@ -80,7 +81,7 @@ const Onboarding8 = () => {
     <View style={styles.container}>
       <ProgressBar currentStep={3} totalSteps={3} />
       <View style={styles.content}>
-        <Text style={styles.header}>When would you like to be{'\n'}Vape Free?</Text>
+        <Text style={styles.header}>When would you like to be Vape Free?</Text>
         <Text style={styles.subtext}>
           Setting a goal helps you commit — even if it’s weeks or months away.
         </Text>
@@ -131,7 +132,7 @@ const Onboarding8 = () => {
         onCancel={() => setCalendarVisible(false)}
         minimumDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-        themeVariant="dark"
+        themeVariant={Platform.OS === 'ios' ? 'light' : 'dark'}
       />
     </View>
     
@@ -140,48 +141,51 @@ const Onboarding8 = () => {
 
 export default Onboarding8;
 
-const { width } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    justifyContent: 'space-between',
+    paddingTop: verticalScale(60),
   },
   content: {
     flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingHorizontal: scale(30),
   },
   header: {
     color: '#ffffff',
-    fontSize: 26,
+    fontSize: scale(26),
     fontWeight: 'bold',
-    marginBottom: 8,
-    lineHeight: 34,
+    lineHeight: scale(34),
+    marginTop: 10,
+    textAlign: 'center',
   },
   subtext: {
     color: '#aaaaaa',
-    fontSize: 14,
-    marginBottom: 30,
+    fontSize: scale(14),
+    marginTop: 10,
+    marginBottom: 20,
+    textAlign: 'center',
   },
   optionContainer: {
-    flexDirection: 'column',
+    width: '100%',
+    marginTop: 10,
     gap: 10,
   },
   option: {
     backgroundColor: '#1a1a1a',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingVertical: verticalScale(16),
+    paddingHorizontal: scale(20),
+    borderRadius: scale(12),
+    marginBottom: verticalScale(12),
   },
   optionSelected: {
     backgroundColor: '#ffffff',
   },
   optionText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: scale(16),
     textAlign: 'center',
   },
   optionTextSelected: {
@@ -189,54 +193,72 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   buttonWrapper: {
-    paddingBottom: 40,
-    alignItems: 'center',
+    marginTop: 'auto',
+    paddingBottom: Platform.OS === 'android' ? 60 : 30,
+    paddingHorizontal: scale(30),
+    width: '100%',
   },
   continueButton: {
     backgroundColor: '#ffffff',
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 30,
-    width: width - 48,
+    paddingVertical: 15,
+    borderRadius: scale(30),
+    width: '100%',
   },
   continueText: {
     color: '#000',
-    fontSize: 16,
+    fontSize: scale(16),
     fontWeight: 'bold',
     textAlign: 'center',
   },
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
   modalContainer: {
     backgroundColor: '#1a1a1a',
-    padding: 24,
-    borderRadius: 12,
+    borderRadius: scale(12),
+    padding: scale(24),
     width: '80%',
-    alignItems: 'center',
   },
   modalTitle: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: scale(18),
     fontWeight: '600',
-    marginBottom: 12,
+    marginBottom: verticalScale(12),
+    textAlign: 'center',
+  },
+  input: {
+    backgroundColor: '#333',
+    color: '#fff',
+    padding: scale(10),
+    borderRadius: scale(8),
+    marginBottom: verticalScale(20),
+    textAlign: 'center',
+    fontSize: scale(16),
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
-    marginTop: 20,
   },
   cancelText: {
     color: '#aaa',
-    fontSize: 16,
+    fontSize: scale(16),
   },
   okText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: scale(16),
     fontWeight: '600',
+  },
+  modalScrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

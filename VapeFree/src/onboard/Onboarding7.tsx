@@ -9,11 +9,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import ProgressBar from '../components/ProgressBar';
+import { sharedStyles as styles, scale, verticalScale } from '../styles/choiceStyle';
 
 
 const options = [
-  'Less than 3 months',
-  '3-6 months',
+  'Less than 6 months',
   '6-12 months',
   '1-2 years',
   '2+ years',
@@ -87,70 +87,3 @@ const Onboarding7 = () => {
 };
 
 export default Onboarding7;
-
-const { width } = Dimensions.get('window');
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    justifyContent: 'space-between',
-  },
-  content: {
-    flex: 1,
-  },
-  header: {
-    color: '#ffffff',
-    fontSize: 26,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    lineHeight: 34,
-  },
-  subtext: {
-    color: '#aaaaaa',
-    fontSize: 14,
-    marginBottom: 30,
-  },
-  optionContainer: {
-    flexDirection: 'column',
-    gap: 10,
-  },
-  option: {
-    backgroundColor: '#1a1a1a',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  optionSelected: {
-    backgroundColor: '#ffffff',
-  },
-  optionText: {
-    color: '#ffffff',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  optionTextSelected: {
-    color: '#000000',
-    fontWeight: '600',
-  },
-  buttonWrapper: {
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  continueButton: {
-    backgroundColor: '#ffffff',
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 30,
-    width: width - 48,
-  },
-  continueText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-});

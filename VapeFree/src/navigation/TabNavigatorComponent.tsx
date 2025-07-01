@@ -14,8 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import GoalsScreen from '../screens/GoalsScreen';
 import HomeScreen from '../screens/HomeScreen';
 import StatsScreen from '../screens/StatsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import TopBar from '../components/TopBar';
 import type { ReactElement } from 'react';
+import { Platform } from 'react-native';
 
 // --- Responsive scale utilities ---
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -140,6 +142,7 @@ const AppNavigator = () => {
 const styles = StyleSheet.create({
   tabBarContainer: {
     backgroundColor: '#000',
+    paddingBottom: Platform.OS === 'android' ? verticalScale(40) : 0,
   },
   tabBar: {
     flexDirection: 'row',

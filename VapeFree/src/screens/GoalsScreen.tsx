@@ -691,49 +691,65 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
       <View style={styles.graphContainer}>
        <Text style={styles.graphTitle}>Puff Reduction Plan</Text>
         {graphDataReady ? (
+
           
-          <LineChart
-            data={{
-              labels: labels,
-              datasets: [
-                {
-                  data: puffLimitData,
-                  color: () => `#3B82F6`,
-                  strokeWidth: 2,
-                },
-                {
-                  data: puffEnteredData,
-                  color: () => '#EF4444',
-                  strokeWidth: 2,
-                },
-              ],
-            }}
-            width={chartWidth}
-            height={220}
-            yAxisLabel=""
-            withDots={false}
-            withInnerLines={false}  // removes inside grid lines
-            withOuterLines={false}  // removes outer edge lines
-            segments={5}
-            bezier
-            chartConfig={{
-              backgroundColor: '#000',
-              backgroundGradientFrom: '#000',
-              backgroundGradientTo: '#000',
-              decimalPlaces: 0,
-              fillShadowGradient: 'transparent',
-              fillShadowGradientOpacity: 0,
-              color: () => `#ffffff`,
-              labelColor: () => `#ffffff`,  // Axis labels
-              style: {
-                borderRadius: 16,
-              },
-            }}
+          
+          <View
             style={{
-              marginVertical: 8,
+              width: SCREEN_WIDTH * 0.9, // 🟢 same as StatsScreen
               borderRadius: 16,
+              overflow: 'hidden',
+              backgroundColor: '#000',
+              paddingRight: scale(35),
             }}
-          />
+          >
+            <LineChart
+              data={{
+                labels: labels,
+                datasets: [
+                  {
+                    data: puffLimitData,
+                    color: () => `#3B82F6`,
+                    strokeWidth: 2,
+                  },
+                  {
+                    data: puffEnteredData,
+                    color: () => '#EF4444',
+                    strokeWidth: 2,
+                  },
+                ],
+              }}
+              width={SCREEN_WIDTH * 0.9}
+              height={Math.max(
+                verticalScale(160),
+                Math.min(verticalScale(240), SCREEN_HEIGHT * 0.3)
+              )}
+              yAxisLabel=""
+              withDots={false}
+              withInnerLines={false}
+              withOuterLines={false}
+              segments={5}
+              bezier
+              chartConfig={{
+                backgroundColor: '#000',
+                backgroundGradientFrom: '#000',
+                backgroundGradientTo: '#000',
+                decimalPlaces: 0,
+                fillShadowGradient: 'transparent',
+                fillShadowGradientOpacity: 0,
+                color: () => `#ffffff`,
+                labelColor: () => `#ffffff`,
+                style: {
+                  borderRadius: 16,
+                },
+              }}
+              style={{
+                marginVertical: 8,
+                alignSelf: 'center',
+              }}
+            />
+          </View>
+
 
 
         ) : (
@@ -769,10 +785,10 @@ const styles = StyleSheet.create({
   },
 
   modalText: {
-  fontSize: scale(14),
-  color: '#aaaaaa',
-  marginBottom: verticalScale(14), // tighter than 20+
-},
+    fontSize: scale(14),
+    color: '#aaaaaa',
+    marginBottom: verticalScale(14), // tighter than 20+
+  },
 
   modalSubText: {
     fontSize: scale(14),
@@ -911,7 +927,7 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(12),
   },
   cardNumber: {
-    fontSize: scale(22),
+    fontSize: scale(20),
     fontWeight: 'bold',
     color: '#ffffff',
   },
@@ -924,6 +940,7 @@ const styles = StyleSheet.create({
     width: '100%',
     marginVertical: verticalScale(20),
     alignItems: 'center',
+    paddingHorizontal: scale(16),
   },
   graphTitle: {
     fontSize: scale(18),

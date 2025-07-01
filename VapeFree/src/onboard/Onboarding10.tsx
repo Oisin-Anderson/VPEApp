@@ -1,7 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import ProgressBar from '../components/ProgressBar';
+
+// Responsive scaling functions
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const scale = (size: number) => (SCREEN_WIDTH / 375) * size; // iPhone X width
+const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size; // iPhone X height
 
 const Onboarding10 = () => {
   const navigation = useNavigation<any>();
@@ -15,9 +20,14 @@ const Onboarding10 = () => {
       <ProgressBar currentStep={1} totalSteps={3} />
       <View style={styles.messageContainer}>
         <Text style={styles.message}>
-          Some not-so-good news,{'\n'}and some great news.
+          Some{' '}
+          <Text style={styles.notSoGood}>not-so-good</Text>
+          {' '}news, and some{' '}
+          <Text style={styles.great}>great</Text>
+          {' '}news.
         </Text>
       </View>
+
 
       <TouchableOpacity style={styles.button} onPress={handleContinue}>
         <Text style={styles.buttonText}>Continue</Text>
@@ -28,16 +38,13 @@ const Onboarding10 = () => {
 
 export default Onboarding10;
 
-const { width } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-    paddingHorizontal: 24,
+    paddingHorizontal: scale(24),
     justifyContent: 'space-between',
-    paddingTop: 10,
-    paddingBottom: 40,
+    paddingTop: verticalScale(60),
   },
   messageContainer: {
     flex: 1,
@@ -45,21 +52,33 @@ const styles = StyleSheet.create({
   },
   message: {
     color: '#ffffff',
-    fontSize: 26,
+    fontSize: scale(30),
     textAlign: 'center',
-    lineHeight: 28,
+    lineHeight: verticalScale(36),
+    paddingBottom: verticalScale(10),
+    paddingTop: verticalScale(10),
   },
   button: {
     backgroundColor: '#ffffff',
-    paddingVertical: 16,
-    borderRadius: 30,
+    paddingVertical: verticalScale(16),
+    borderRadius: scale(30),
     alignItems: 'center',
-    width: width - 48,
+    width: SCREEN_WIDTH - scale(48),
     alignSelf: 'center',
+    marginBottom: Platform.OS === 'android' ? 60 : 30,
   },
   buttonText: {
     color: '#000000',
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: scale(16),
   },
+  notSoGood: {
+    color: '#EF4444',
+    fontSize: 26,
+  },
+  great: {
+    color: '#3B82F6',
+    fontSize: 34,
+  },
+
 });

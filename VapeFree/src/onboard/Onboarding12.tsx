@@ -1,10 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { usePuff } from '../context/PuffContext';
 import ProgressBar from '../components/ProgressBar';
+
+// Responsive scaling functions
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const scale = (size: number) => (SCREEN_WIDTH / 375) * size;
+const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size;
 
 const quitGoalDaysMap: Record<string, number> = {
   '1 week': 7,
@@ -12,7 +17,7 @@ const quitGoalDaysMap: Record<string, number> = {
   '1 month': 30,
   '3 months': 90,
   '6 months': 180,
-  'Other': 60, // default/fallback
+  'Other': 60,
 };
 
 const Onboarding12 = () => {
@@ -25,9 +30,9 @@ const Onboarding12 = () => {
     quitInDays = quitGoalDaysMap[quitGoal];
   } else {
     const today = new Date();
-    const target = new Date(quitGoal); // ISO string
+    const target = new Date(quitGoal);
     const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    quitInDays = Math.max(diff, 7); // enforce at least 7 days
+    quitInDays = Math.max(diff, 7);
   }
 
   const preQuitPuffs = (puffCount / 2) * quitInDays;
@@ -81,16 +86,14 @@ const Onboarding12 = () => {
 
 export default Onboarding12;
 
-const { width } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-    paddingHorizontal: 24,
+    paddingHorizontal: scale(24),
     justifyContent: 'space-between',
-    paddingBottom: 40,
-    paddingTop: 10,
+    paddingTop: verticalScale(60),
+    paddingBottom: Platform.OS === 'android' ? verticalScale(60) : verticalScale(30),
   },
   textBlock: {
     flex: 1,
@@ -99,39 +102,41 @@ const styles = StyleSheet.create({
   },
   topText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: scale(18),
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
+    lineHeight: verticalScale(26),
   },
   gradientText: {
-    fontSize: 48,
+    fontSize: scale(48),
     fontWeight: 'bold',
     textAlign: 'center',
   },
   bottomText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: scale(18),
     textAlign: 'center',
-    marginTop: 16,
-    lineHeight: 26,
+    marginTop: verticalScale(16),
+    lineHeight: verticalScale(26),
   },
   caption: {
     color: '#aaa',
-    fontSize: 13,
+    fontSize: scale(13),
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: verticalScale(20),
+    paddingHorizontal: scale(10),
   },
   button: {
     backgroundColor: '#fff',
-    paddingVertical: 16,
-    borderRadius: 30,
-    width: width - 48,
+    paddingVertical: verticalScale(16),
+    borderRadius: scale(30),
+    width: SCREEN_WIDTH - scale(48),
     alignSelf: 'center',
   },
   buttonText: {
     color: '#000',
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: scale(16),
     textAlign: 'center',
   },
   bottomBlock: {

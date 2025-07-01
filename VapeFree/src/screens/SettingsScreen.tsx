@@ -1,79 +1,153 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Linking,
+  Share,
+  Modal,
+  Pressable,
+  Alert,
+  ScrollView,
+  Dimensions,
+} from 'react-native';
+import * as MailComposer from 'expo-mail-composer';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { Platform } from 'react-native';
 
-// Simulated chart data (time-based usage)
-const chartData = [
-  { time: '12 AM', value: 0 },
-  { time: '5 PM', value: 0 },
-  { time: '6 PM', value: 1 },
-];
 
-const HomeScreen = () => {
-  const [puffCount, setPuffCount] = useState(1);
-  const nicotineLevel = '0 mg';
+const { width, height } = Dimensions.get('window');
 
-  const handlePuff = () => {
-    setPuffCount((prev) => prev + 1);
-    // Add logic to update chart data or storage here
+// Scale factors
+const isSmallDevice = width < 360;
+const scale = width / 375; // 375 is a common baseline
+
+
+
+
+const SettingsScreen = () => {
+  const [showRatingPopup, setShowRatingPopup] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const navigation = useNavigation<any>();
+
+  const emailHelp = async (subject: string) => {
+    const isAvailable = await MailComposer.isAvailableAsync();
+
+    if (isAvailable) {
+      MailComposer.composeAsync({
+        recipients: ['oisin@oagames.xyz'],
+        subject: subject,
+        body: '',
+      });
+    } else {
+      Alert.alert(
+        'Mail App Not Available',
+        'Email is not set up on this device. Please configure your mail app first.'
+      );
+    }
   };
 
-  // Simplified chart component
-  const SimpleChart = () => {
-    const width = Dimensions.get('window').width - 40;
-    const height = 150;
+  const emailFeedback = async (subject: string) => {
+    const isAvailable = await MailComposer.isAvailableAsync();
 
-    return (
-      <View style={styles.chartContainer}>
-        <View style={styles.chart}>
-          {chartData.map((point, index) => (
-            <View
-              key={index}
-              style={{
-                position: 'absolute',
-                left: (index * (width / (chartData.length - 1))),
-                bottom: 0,
-                height: (point.value / 1) * height, // Scale value to chart height
-                width: 2,
-                backgroundColor: '#4A90E2',
-              }}
-            />
-          ))}
-        </View>
-        <View style={styles.chartLabels}>
-          {chartData.map((point, index) => (
-            <Text key={index} style={styles.chartLabel}>
-              {point.time}
-            </Text>
-          ))}
-        </View>
-      </View>
-    );
+    if (isAvailable) {
+      MailComposer.composeAsync({
+        recipients: ['oisin@oagames.xyz'],
+        subject: subject,
+        body: '',
+      });
+    } else {
+      Alert.alert(
+        'Mail App Not Available',
+        'Email is not set up on this device. Please configure your mail app first.'
+      );
+    }
   };
+
+
+  const handleRateUs = () => {
+    setShowRatingPopup(true);
+  };
+
+  const handleStarPress = (rating: number) => {
+    setSelectedRating(rating);
+    setShowRatingPopup(false);
+
+    if (rating < 4) {
+      Alert.alert('Thanks for your feedback!');
+    } else {
+      Linking.openURL('https://example.com/store');
+    }
+  };
+
+  const shareApp = async () => {
+    const iosLink = 'https://apps.apple.com/app/idYOUR_APP_ID';
+    const androidLink = 'https://play.google.com/store/apps/details?id=YOUR_PACKAGE_NAME';
+
+    const url = Platform.OS === 'ios' ? iosLink : androidLink;
+
+    await Share.share({
+      message: `Check out this awesome app: ${url}`,
+    });
+  };
+
+  const openWebPage = (url: string) => {
+    Linking.openURL(url);
+  };
+
+  const settingsOptions = [
+    { label: 'Need Help', icon: 'mail', onPress: () => emailHelp('PuffDaddy Help') },
+    //{ label: 'Rate Us', icon: 'star', onPress: handleRateUs },
+    { label: 'Give Feedback', icon: 'chatbox-ellipses', onPress: () => emailFeedback('PuffDaddy Feedback') },
+    //{ label: 'Share the App', icon: 'share-social', onPress: shareApp },
+    { label: 'Notifications', icon: 'notifications', onPress: () => {} },
+    { label: 'Privacy Policy', icon: 'lock-closed', onPress: () => openWebPage('https://oagames.xyz/privacypolicy.html') },
+    { label: 'Terms of Use', icon: 'document-text', onPress: () => openWebPage('https://oagames.xyz/terms.html') },
+    { label: 'Membership', icon: 'card', onPress: () => navigation.navigate('Membership') },
+  ];
 
   return (
     <View style={styles.container}>
-      {/* Circular Counter */}
-      <View style={styles.counterContainer}>
-        <View style={styles.counterCircle}>
-          <Text style={styles.counterText}>{puffCount}</Text>
-          <Text style={styles.counterLabel}>PUFFS TODAY</Text>
-          <Text style={styles.nicotineText}>{nicotineLevel}</Text>
-          <Text style={styles.nicotineLabel}>NICOTINE</Text>
-        </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.header}>Settings</Text>
+        {settingsOptions.map((item, index) => (
+          <TouchableOpacity key={index} style={styles.option} onPress={item.onPress}>
+            <Ionicons name={item.icon as any} size={22} color="#fff" style={styles.icon} />
+            <Text style={styles.label}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <View style={styles.buttonWrapper}>
+        <TouchableOpacity style={styles.closeButton} onPress={() => navigation.navigate('MainTabs')}>
+          <Text style={styles.closeButtonText}>Close Settings</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Usage Chart */}
-      <View style={styles.chartSection}>
-        <Text style={styles.sectionTitle}>Usage today</Text>
-        <SimpleChart />
-      </View>
 
-      {/* Puff Button */}
-      <TouchableOpacity style={styles.puffButton} onPress={handlePuff}>
-        <Ionicons name="add" size={24} color="#FFF" />
-        <Text style={styles.puffButtonText}>PUFF</Text>
-      </TouchableOpacity>
+      {/* Rating Popup */}
+      <Modal transparent visible={showRatingPopup} animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowRatingPopup(false)}>
+          <Pressable style={styles.popup} onPress={() => {}}>
+            <Text style={styles.popupTitle}>Rate the App</Text>
+            <View style={styles.starsContainer}>
+              {[1, 2, 3, 4, 5].map((num) => (
+                <Pressable key={num} onPress={() => handleStarPress(num)}>
+                  <Ionicons
+                    name={num <= selectedRating ? 'star' : 'star-outline'}
+                    size={32}
+                    color="#f1c40f"
+                    style={styles.star}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
     </View>
   );
 };
@@ -81,92 +155,80 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    alignItems: 'center',
-    paddingTop: 50,
+    backgroundColor: '#000',
+    paddingTop: height * 0.06, // roughly 6% of screen height
+    paddingHorizontal: width * 0.06, // ~24px on 375px width
   },
-  counterContainer: {
-    alignItems: 'center',
+  scrollContent: {
+    paddingBottom: height * 0.05,
   },
-  counterCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5, // Shadow for Android
-    shadowColor: '#000', // Shadow for iOS
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  counterText: {
-    fontSize: 48,
+  header: {
+    fontSize: scale * 26,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
+    marginBottom: height * 0.035,
   },
-  counterLabel: {
-    fontSize: 16,
-    color: '#888',
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    paddingVertical: height * 0.02,
+    paddingHorizontal: width * 0.05,
+    borderRadius: 12,
+    marginBottom: height * 0.015,
   },
-  nicotineText: {
-    fontSize: 20,
-    color: '#F5A623',
-    marginTop: 10,
+  icon: {
+    marginRight: width * 0.04,
   },
-  nicotineLabel: {
-    fontSize: 14,
-    color: '#888',
+  label: {
+    fontSize: scale * 16,
+    color: '#fff',
   },
-  chartSection: {
-    width: '90%',
-    marginVertical: 20,
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
   },
-  sectionTitle: {
-    fontSize: 18,
+  popup: {
+    backgroundColor: '#1a1a1a',
+    width: width * 0.8,
+    padding: width * 0.06,
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  popupTitle: {
+    fontSize: scale * 18,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
+    color: '#fff',
+    marginBottom: height * 0.02,
   },
-  chartContainer: {
-    height: 150,
-    justifyContent: 'flex-end',
-  },
-  chart: {
+  starsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    height: '100%',
   },
-  chartLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
+  star: {
+    marginHorizontal: width * 0.015,
   },
-  chartLabel: {
-    fontSize: 12,
-    color: '#666',
-  },
-  puffButton: {
-    flexDirection: 'row',
+  buttonWrapper: {
+    paddingBottom: height * 0.04,
+    paddingHorizontal: width * 0.06,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#4A90E2',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    marginBottom: height * 0.05,
   },
-  puffButtonText: {
-    color: '#FFF',
-    fontSize: 18,
+  closeButton: {
+    backgroundColor: '#fff',
+    borderRadius: 30,
+    paddingVertical: height * 0.02,
+    paddingHorizontal: width * 0.2,
+    width: '100%',
+  },
+  closeButtonText: {
+    color: '#000',
+    fontSize: scale * 16,
     fontWeight: 'bold',
-    marginLeft: 10,
+    textAlign: 'center',
   },
+
 });
 
-export default HomeScreen;
+export default SettingsScreen;

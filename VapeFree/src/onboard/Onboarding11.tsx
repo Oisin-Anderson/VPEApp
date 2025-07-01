@@ -1,10 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePuff } from '../context/PuffContext';
 import MaskedView from '@react-native-masked-view/masked-view';
 import ProgressBar from '../components/ProgressBar';
+
+// Responsive scaling functions
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const scale = (size: number) => (SCREEN_WIDTH / 375) * size;
+const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size;
 
 const Onboarding11 = () => {
   const navigation = useNavigation<any>();
@@ -54,16 +59,14 @@ const Onboarding11 = () => {
 
 export default Onboarding11;
 
-const { width } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-    paddingHorizontal: 24,
+    paddingHorizontal: scale(24),
     justifyContent: 'space-between',
-    paddingBottom: 40,
-    paddingTop: 10,
+    paddingTop: verticalScale(60),
+    paddingBottom: Platform.OS === 'android' ? verticalScale(60) : verticalScale(30),
   },
   textBlock: {
     flex: 1,
@@ -72,39 +75,41 @@ const styles = StyleSheet.create({
   },
   topText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: scale(18),
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
+    lineHeight: verticalScale(26),
   },
   gradientText: {
-    fontSize: 48,
+    fontSize: scale(48),
     fontWeight: 'bold',
     textAlign: 'center',
   },
   bottomText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: scale(18),
     textAlign: 'center',
-    marginTop: 16,
-    lineHeight: 26,
+    marginTop: verticalScale(16),
+    lineHeight: verticalScale(26),
   },
   caption: {
     color: '#aaa',
-    fontSize: 13,
+    fontSize: scale(13),
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: verticalScale(20),
+    paddingHorizontal: scale(10),
   },
   button: {
     backgroundColor: '#fff',
-    paddingVertical: 16,
-    borderRadius: 30,
-    width: width - 48,
+    paddingVertical: verticalScale(16),
+    borderRadius: scale(30),
+    width: SCREEN_WIDTH - scale(48),
     alignSelf: 'center',
   },
   buttonText: {
     color: '#000',
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: scale(16),
     textAlign: 'center',
   },
   bottomBlock: {

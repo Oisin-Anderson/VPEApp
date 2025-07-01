@@ -7,6 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
 import { Modal, Pressable } from 'react-native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { RootStackParamList } from '../navigation/types'; // adjust path if needed
+
 
 const TopBar = ({
   showReset = false,
@@ -18,7 +21,7 @@ const TopBar = ({
   onVapePress?: () => void;
 }) => {
 
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [showResetModal, setShowResetModal] = useState(false);
 
 
@@ -47,7 +50,7 @@ const TopBar = ({
               <Ionicons name="cloud-outline" size={24} color="#ffffff" />
             </TouchableOpacity>
           )}
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
             <Ionicons name="settings-outline" size={24} color="#ffffff" />
           </TouchableOpacity>
         </View>
@@ -141,8 +144,8 @@ const TopBar = ({
 
 const styles = StyleSheet.create({
   titleContainer: {
-    paddingTop: 40,
-    paddingBottom: 20,
+    paddingTop: 30,
+    paddingBottom: 10,
     backgroundColor: '#000',
     paddingHorizontal: 24,
   },

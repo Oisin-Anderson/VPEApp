@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, StyleProp, ViewStyle, TextStyle, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { usePuff } from '../context/PuffContext';
 import { Animated } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import MaskedView from '@react-native-masked-view/masked-view';
 import { forwardRef, useImperativeHandle } from 'react';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -101,6 +100,8 @@ const HomeScreen = (
   const [puffCountLoaded, setPuffCountLoaded] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [extendedTips, setExtendedTips] = useState<string[]>([]);
+  const [fadeTipAnim] = useState(new Animated.Value(1)); // Starts visible
+
 
 
 
@@ -226,13 +227,6 @@ const HomeScreen = (
 ];
 
 
-  const [randomTip, setRandomTip] = useState('');
-  const [showTipsModal, setShowTipsModal] = useState(false);
-
-  useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * quitTips.length);
-    setRandomTip(quitTips[randomIndex]);
-  }, []);
 
   const getRandomTips = (tips: string[], count: number): string[] => {
     const shuffled = [...tips].sort(() => 0.5 - Math.random());
@@ -244,9 +238,11 @@ const HomeScreen = (
   useEffect(() => {
     const tips = getRandomTips(quitTips, 5);
     setCarouselTips(tips);
-    setExtendedTips([tips[tips.length - 1], ...tips, tips[0]]);
+    const extended = [tips[tips.length - 1], ...tips, tips[0]];
+    setExtendedTips(extended);
     setTipIndex(0);
   }, []);
+
 
 
 
@@ -270,7 +266,21 @@ const HomeScreen = (
   }, [tipIndex, carouselTips, extendedTips]);
 
 
-  const TIP_ITEM_WIDTH = SCREEN_WIDTH - scale(48);
+
+
+  useEffect(() => {
+    if (!isFocused || extendedTips.length === 0) return;
+
+    // Jump to the next tip immediately
+    let nextIndex = tipIndex + 2;
+    if (nextIndex >= extendedTips.length) {
+      nextIndex = 1;
+    }
+
+    // Set immediately
+    flatListRef.current?.scrollToIndex({ index: nextIndex, animated: false });
+    setTipIndex((prev) => (prev + 1) % carouselTips.length);
+  }, [isFocused]);
 
 
 
@@ -595,6 +605,32 @@ useEffect(() => {
 
 
 
+  useEffect(() => {
+    if (!isFocused || carouselTips.length === 0) return;
+
+    const interval = setInterval(() => {
+      Animated.timing(fadeTipAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        // ✅ Set new tip while hidden
+        setTipIndex((prev) => (prev + 1) % carouselTips.length);
+
+        // ✅ Then fade in new tip
+        Animated.timing(fadeTipAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [carouselTips, isFocused]);
+
+
+
 
 
 
@@ -620,37 +656,12 @@ useEffect(() => {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={handleCirclePress} style={styles.counterContainer}>
-        {isStrengthConfigured ? (
-          <>
-            <Animated.View style={{ opacity: fadeIn }}>
-              <Text style={[styles.counterText, { color: '#fff' }]}>{puffCount}</Text>
-            </Animated.View>
-            <Text style={[styles.counterLabel, { color: '#fff' }]}>PUFFS TODAY</Text>
-          </>
-        ) : (
-          <Animated.View
-            style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: fadeAnim,
-            }}
-          >
-            {showStats ? (
-              <>
-                <Text style={[styles.counterText, { color: '#fff' }]}>{puffCount}</Text>
-                <Text style={[styles.counterLabel, { color: '#fff' }]}>PUFFS TODAY</Text>
-              </>
-            ) : (
-              <Text
-                style={[styles.counterLabel, { fontSize: scale(16), textAlign: 'center', color: '#fff' }]}
-              >
-                Tap to Configure
-              </Text>
-            )}
-          </Animated.View>
-        )}
-      </TouchableOpacity>
+      <View style={styles.counterContainer}>
+        <Animated.View style={{ opacity: fadeIn }}>
+          <Text style={[styles.counterText, { color: '#fff' }]}>{puffCount}</Text>
+        </Animated.View>
+        <Text style={[styles.counterLabel, { color: '#fff' }]}>PUFFS TODAY</Text>
+      </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20, width: '100%' }}>
         <View style={styles.timerCard}>
           <Text style={styles.cardLbl}>Puff Limit</Text>
@@ -673,50 +684,13 @@ useEffect(() => {
 
       <View style={styles.tipCard}>
         <Text style={styles.tipTitle}>Quitting Tips</Text>
-        <FlatList
-          data={extendedTips}
-          ref={flatListRef}
-          scrollEnabled={false}
-          keyExtractor={(_, index) => index.toString()}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          initialScrollIndex={1} // Start at the real first tip
-          getItemLayout={(_, index) => ({
-            length: TIP_ITEM_WIDTH,
-            offset: TIP_ITEM_WIDTH * index,
-            index,
-          })}
-          onMomentumScrollEnd={(event) => {
-            const offset = event.nativeEvent.contentOffset.x;
-            const index = Math.round(offset / TIP_ITEM_WIDTH);
-
-            if (index === 0) {
-              // scrolled to fake first (last clone)
-              flatListRef.current?.scrollToIndex({ index: carouselTips.length, animated: false });
-              setTipIndex(carouselTips.length - 1);
-            } else if (index === extendedTips.length - 1) {
-              // scrolled to fake last (first clone)
-              flatListRef.current?.scrollToIndex({ index: 1, animated: false });
-              setTipIndex(0);
-            } else {
-              setTipIndex(index - 1);
-            }
-          }}
-          renderItem={({ item }) => (
-            <View
-              style={{
-                width: TIP_ITEM_WIDTH,
-                justifyContent: 'flex-start',
-                alignItems: 'flex-start',
-              }}
-            >
-              <Text style={[styles.tipText, { textAlign: 'left' }]}>
-                {item}
-              </Text>
-            </View>
-          )}
-        />
+        {isFocused && (
+        <Animated.View style={{ opacity: fadeTipAnim }}>
+          <Text style={[styles.tipText, { textAlign: 'left' }]}>
+            {carouselTips[tipIndex]}
+          </Text>
+        </Animated.View>
+        )}
       </View>
 
 
@@ -792,7 +766,7 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(20),
   },
   counterContainer: {
-    paddingTop: verticalScale(40),
+    paddingTop: verticalScale(20),
     alignItems: 'center',
   },
   counterCircle: {
@@ -966,7 +940,7 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(12),
   },
   cardNumber: {
-    fontSize: scale(15),
+    fontSize: scale(14),
     fontWeight: 'bold',
     color: '#ffffff',
   },
@@ -981,7 +955,7 @@ const styles = StyleSheet.create({
     padding: scale(20),
     marginTop: verticalScale(20),
     width: '100%',
-    height: verticalScale(120),
+    height: verticalScale(140),
   },
   tipTitle: {
     fontSize: scale(16),
@@ -996,18 +970,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     flexShrink: 1,
     width: '85%',
-  },
-  tipButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: scale(12),
-    paddingVertical: verticalScale(6),
-    borderRadius: scale(5),
-  },
-  tipButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: scale(14),
   },
   tipListItem: {
     color: '#333',
