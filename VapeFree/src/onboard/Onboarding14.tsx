@@ -1,64 +1,36 @@
-// src/screens/Onboarding18.tsx
+// src/screens/Onboarding1.tsx
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native'; // Add this line
+import { imgStyle as styles } from '../styles/imgStyle';
+import ProgressBar from '../components/ProgressBar';
 
 const Onboarding14 = () => {
   const navigation = useNavigation<any>();
 
   const handleNext = () => {
-    navigation.navigate('Onboarding19');
+    navigation.navigate('Onboarding15');
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.textContainer}>
-        <Text style={styles.text}>
-          Now, let’s look at how{'\n'}
-          Opal can help you focus{'\n'}
-          better and find your flow{'\n'}
-          today.
-        </Text>
+      <ProgressBar currentStep={5} totalSteps={6} />
+      <View style={styles.videoContainer}>
+        
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleNext}>
-        <Text style={styles.buttonText}>Continue</Text>
-      </TouchableOpacity>
+      <View style={styles.content}>
+        <Text style={styles.title}>We'll Develop a quitting plan for you</Text>
+        <Text style={styles.subtitle}>
+          By weaning you down over time, until you don't feel the need to vape anymore
+        </Text>
+
+        <TouchableOpacity style={styles.button} onPress={handleNext}>
+          <Text style={styles.buttonText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 export default Onboarding14;
-
-const { width } = Dimensions.get('window');
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  textContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  text: {
-    color: '#fff',
-    fontSize: 20,
-    lineHeight: 28,
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: '#fff',
-    borderRadius: 30,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  buttonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});

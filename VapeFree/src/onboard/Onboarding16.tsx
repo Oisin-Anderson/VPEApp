@@ -15,7 +15,7 @@ const Onboarding16 = () => {
 
 
   const goals = [
-    'Reduce your daily puffs by at least 50% amount',
+    'Reduce your daily puffs by at least 50%',
     'Become 30% more focused as nicotine fades',
     'Lower your cravings by identifying top triggers',
     'Feel less shortness of breath after light exercise',
@@ -47,9 +47,16 @@ const Onboarding16 = () => {
         ))}
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleContinue}>
-        <Text style={styles.buttonText}>Continue</Text>
-      </TouchableOpacity>
+      <LinearGradient
+        colors={['#EF4444', '#3B82F6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.gradientButton}
+      >
+        <TouchableOpacity style={styles.button} onPress={handleContinue} activeOpacity={0.8}>
+          <Text style={styles.buttonText}>Commit</Text>
+        </TouchableOpacity>
+      </LinearGradient>
     </View>
   );
 };
@@ -84,7 +91,7 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginRight: 12,
-    marginTop: 2,
+    marginTop: 0,
   },
   goalText: {
     color: '#fff',
@@ -93,7 +100,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   button: {
-    backgroundColor: '#fff',
     paddingVertical: 16,
     borderRadius: 30,
     width: width - 48,
@@ -105,4 +111,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
+  gradientButton: {
+    borderRadius: 30,
+    width: width - 48,
+    alignSelf: 'center',
+  }
 });

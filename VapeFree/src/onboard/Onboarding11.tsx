@@ -22,7 +22,7 @@ const Onboarding11 = () => {
 
   return (
     <View style={styles.container}>
-      <ProgressBar currentStep={2} totalSteps={3} />
+      <ProgressBar currentStep={2} totalSteps={6} />
       <View style={styles.textBlock}>
         <Text style={styles.topText}>
           If you keep up your current vape usage, you're on track to spend
@@ -46,7 +46,7 @@ const Onboarding11 = () => {
 
       <View style={styles.bottomBlock}>
         <Text style={styles.caption}>
-          Based on your daily puff count. It could be much more, depending on the vapes you use.
+          Based on your daily puff count. This is a rough estimate which depends on the vapes you use.
         </Text>
 
         <TouchableOpacity style={styles.button} onPress={handleContinue}>

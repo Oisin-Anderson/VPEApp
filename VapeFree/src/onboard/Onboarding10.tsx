@@ -17,7 +17,7 @@ const Onboarding10 = () => {
 
   return (
     <View style={styles.container}>
-      <ProgressBar currentStep={1} totalSteps={3} />
+      <ProgressBar currentStep={1} totalSteps={6} />
       <View style={styles.messageContainer}>
         <Text style={styles.message}>
           Some{' '}

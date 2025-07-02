@@ -42,6 +42,16 @@ export const imgStyle = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
   },
+  subtitleHeader: {
+    color: '#888',
+    fontSize: scale(16),
+    textAlign: 'center',
+    marginBottom: scale(8),
+  },
+  boldText: {
+    fontWeight: 'bold',
+    color: '#fff',
+  },
   button: {
     backgroundColor: '#fff',
     borderRadius: scale(30),

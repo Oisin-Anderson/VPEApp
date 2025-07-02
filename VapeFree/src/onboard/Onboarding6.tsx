@@ -130,7 +130,7 @@ const Onboarding6 = () => {
                   setCustomValue(text);
                   const num = parseInt(text);
                   setIsValid(!isNaN(num) && num > 0);
-                  if (!isNaN(num) && num > 0) setSelected('Other');
+                  if (!isNaN(num) && num > 0) setSelected('Custom Amount');
                 }}
                 placeholder="Enter a number"
                 placeholderTextColor="#888"

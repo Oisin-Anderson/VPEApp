@@ -44,12 +44,12 @@ const Onboarding12 = () => {
   const moneySaved = originalCost - adjustedCost;
 
   const handleContinue = () => {
-    navigation.navigate('Onboarding16');
+    navigation.navigate('Onboarding13');
   };
 
   return (
     <View style={styles.container}>
-      <ProgressBar currentStep={3} totalSteps={3} />
+      <ProgressBar currentStep={3} totalSteps={6} />
       <View style={styles.textBlock}>
         <Text style={styles.topText}>
           If you stick to your goal, you could save
@@ -73,11 +73,11 @@ const Onboarding12 = () => {
 
       <View style={styles.bottomBlock}>
         <Text style={styles.caption}>
-          Based on your daily puff count and quit goal.
+          Based on your daily puff count and quit goal. Again this is a rough estimate depending on the vapes you use.
         </Text>
 
         <TouchableOpacity style={styles.button} onPress={handleContinue}>
-          <Text style={styles.buttonText}>Continue</Text>
+          <Text style={styles.buttonText}>Keep your money</Text>
         </TouchableOpacity>
       </View>
     </View>
