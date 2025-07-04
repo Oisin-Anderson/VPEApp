@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "VapeFree",
-    "slug": "VapeFree",
+    "name": "PuffDaddy",
+    "slug": "PuffDaddy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,13 +20,23 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.oagames.PuffDaddy"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-mail-composer"
-    ]
+      "expo-mail-composer",
+      [
+        "react-native-iap",
+        { "playStore": true }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e21f2f9b-be1d-4a67-918e-86a64496c8a7"
+      }
+    }
   }
 }

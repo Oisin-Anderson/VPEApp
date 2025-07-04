@@ -1,45 +1,45 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import ProgressBar from '../components/ProgressBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 
 // Responsive scaling functions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const scale = (size: number) => (SCREEN_WIDTH / 375) * size; // iPhone X width
 const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size; // iPhone X height
 
-const Onboarding22 = () => {
+const Onboarding18 = () => {
   const navigation = useNavigation<any>();
 
   const handleContinue = async () => {
-    // Show onboarding message first, then request notification permissions
     await AsyncStorage.setItem('hasUsedApp', 'true');
-    await Notifications.requestPermissionsAsync();
-    navigation.navigate('Onboarding23');
+    navigation.navigate('MainTabs');
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.messageContainer}>
         <Text style={styles.message}>
-          Get reminded with notifications!
+          Before you start, remember that quitting any bad habit takes time.
         </Text>
         <Text style={styles.message}>
-          We'll remind you to record your puffs a few times a day.
+          It may be 1, 3 or 6 months before you fully stop your need to vape.
         </Text>
         <Text style={styles.message}>
-          Tap below to allow notifications and begins tracking.
+          Just know that PuffDaddy is looking out for you.
         </Text>
       </View>
+
+
       <TouchableOpacity style={styles.button} onPress={handleContinue}>
-        <Text style={styles.buttonText}>Enable Notifications</Text>
+        <Text style={styles.buttonText}>Begin your journey</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
-export default Onboarding22;
+export default Onboarding18;
 
 const styles = StyleSheet.create({
   container: {

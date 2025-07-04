@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { useEffect } from 'react';
 
 
 const { width, height } = Dimensions.get('window');
@@ -23,47 +22,57 @@ const MembershipScreen = () => {
   const navigation = useNavigation<any>();
   const [showCancelPopup, setShowCancelPopup] = useState(false);
 
-  const renewalDate = 'July 25, 2025'; // You can replace this dynamically
-
+  const [isActive, setIsActive] = useState(true);
+  const [renewalDate, setRenewalDate] = useState<string | null>(null);
 
   const [totalPuffs, setTotalPuffs] = useState(0);
-    const [moneySaved, setMoneySaved] = useState(0);
+  const [moneySaved, setMoneySaved] = useState(0);
 
-    useFocusEffect(
+  useFocusEffect(
     React.useCallback(() => {
-        const fetchPuffsAndCalculateSavings = async () => {
+      const fetchPuffsAndCalculateSavings = async () => {
         try {
-            const keys = await AsyncStorage.getAllKeys();
-            const puffKeys = keys.filter(key => key.startsWith('puffTimes-'));
+          const keys = await AsyncStorage.getAllKeys();
+          const puffKeys = keys.filter(key => key.startsWith('puffTimes-'));
 
-            let puffCount = 0;
+          let puffCount = 0;
 
-            for (const key of puffKeys) {
+          for (const key of puffKeys) {
             const json = await AsyncStorage.getItem(key);
             if (json) {
-                try {
+              try {
                 const entries = JSON.parse(json);
                 if (Array.isArray(entries)) {
-                    puffCount += entries.length;
+                  puffCount += entries.length;
                 }
-                } catch {}
+              } catch {}
             }
-            }
+          }
 
-            // Assume 500 puffs per vape = $10
-            const saved = (puffCount / 500) * 10;
+          // Assume 500 puffs per vape = $10
+          const saved = (puffCount / 500) * 10;
 
-            setTotalPuffs(puffCount);
-            setMoneySaved(saved);
+          setTotalPuffs(puffCount);
+          setMoneySaved(saved);
         } catch (err) {
-            console.error('Failed to calculate savings:', err);
+          console.error('Failed to calculate savings:', err);
         }
-        };
+      };
 
-        fetchPuffsAndCalculateSavings();
+      fetchPuffsAndCalculateSavings();
     }, [])
-    );
+  );
 
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      // Replace with your backend call if needed
+      const status = await AsyncStorage.getItem('subscriptionStatus');
+      const date = await AsyncStorage.getItem('renewalDate');
+      setIsActive(status !== 'canceled');
+      setRenewalDate(date);
+    };
+    fetchSubscription();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -72,7 +81,11 @@ const MembershipScreen = () => {
 
         <View style={styles.option}>
           <Ionicons name="calendar" size={22} color="#fff" style={styles.icon} />
-          <Text style={styles.label}>Next Renewal: {renewalDate}</Text>
+          <Text style={styles.label}>
+            {isActive && renewalDate
+              ? `Next Renewal: ${renewalDate}`
+              : 'Subscription: Canceled'}
+          </Text>
         </View>
 
         <TouchableOpacity style={[styles.option, styles.cancelButton]} onPress={() => setShowCancelPopup(true)}>
@@ -93,23 +106,27 @@ const MembershipScreen = () => {
           <Pressable style={styles.popup} onPress={() => {}}>
             <Text style={styles.popupTitle}>Quitting Already?</Text>
             <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 10 }}>
-                You've saved <Text style={{ color: '#00d600' }}>${moneySaved.toFixed(2)}</Text> since you started using this app. Would you like to keep saving even more?
+              You've saved <Text style={{ color: '#00d600' }}>${moneySaved.toFixed(2)}</Text> since you started using this app. Would you like to keep saving even more?
             </Text>
             <View style={styles.buttonRow}>
-                <TouchableOpacity style={styles.confirmButton} onPress={() => setShowCancelPopup(false)}>
+              <TouchableOpacity style={styles.confirmButton} onPress={() => setShowCancelPopup(false)}>
                 <Text style={styles.confirmText}>Keep Saving</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.giveUpButton}
-                onPress={() => {
-                    setShowCancelPopup(false);
-                    // Add cancel logic here
+                onPress={async () => {
+                  setShowCancelPopup(false);
+                  setIsActive(false);
+                  setRenewalDate(null);
+                  await AsyncStorage.setItem('subscriptionStatus', 'canceled');
+                  await AsyncStorage.removeItem('renewalDate');
+                  // Optionally, call your backend to cancel the subscription here
                 }}
-                >
+              >
                 <Text style={styles.giveUpText}>Give Up</Text>
-                </TouchableOpacity>
+              </TouchableOpacity>
             </View>
-            </Pressable>
+          </Pressable>
         </Pressable>
       </Modal>
     </View>

@@ -102,7 +102,7 @@ const SettingsScreen = () => {
     //{ label: 'Rate Us', icon: 'star', onPress: handleRateUs },
     { label: 'Give Feedback', icon: 'chatbox-ellipses', onPress: () => emailFeedback('PuffDaddy Feedback') },
     //{ label: 'Share the App', icon: 'share-social', onPress: shareApp },
-    { label: 'Notifications', icon: 'notifications', onPress: () => {} },
+    { label: 'Notifications', icon: 'notifications', onPress: () => navigation.navigate('Notifications') },
     { label: 'Privacy Policy', icon: 'lock-closed', onPress: () => openWebPage('https://oagames.xyz/privacypolicy.html') },
     { label: 'Terms of Use', icon: 'document-text', onPress: () => openWebPage('https://oagames.xyz/terms.html') },
     { label: 'Membership', icon: 'card', onPress: () => navigation.navigate('Membership') },
