@@ -14,7 +14,11 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease",
+        "env": {
+          "EXPO_PUBLIC_ENABLE_OPTIMIZATIONS": "true"
+        }
       }
     }
   },
