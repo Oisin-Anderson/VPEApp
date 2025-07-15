@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from '
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { scheduleDemoNotifications } from '../services/notifications';
 
 // Responsive scaling functions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -16,6 +17,10 @@ const Onboarding22 = () => {
     // Show onboarding message first, then request notification permissions
     await AsyncStorage.setItem('hasUsedApp', 'true');
     await Notifications.requestPermissionsAsync();
+    // Get remindersPerDay from storage (default 3)
+    const countStr = await AsyncStorage.getItem('notificationsPerDay');
+    const remindersPerDay = countStr ? parseInt(countStr, 10) : 3;
+    scheduleDemoNotifications(remindersPerDay);
     navigation.navigate('Onboarding23');
   };
 

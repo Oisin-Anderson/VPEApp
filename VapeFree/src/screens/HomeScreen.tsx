@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, FlatList } from 'react-native';
+import React, { useState, useEffect, useRef, memo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, FlatList, InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { usePuff } from '../context/PuffContext';
@@ -78,11 +78,10 @@ const HomeScreen = (
   { refreshKey }: { refreshKey: number },
   ref: React.Ref<{ openNicotineModal: () => void }>
 ) => {
-  const { puffCount, setPuffCount } = usePuff();
+  const { puffCount, setPuffCount, nicotineMg, setNicotineMg } = usePuff();
   const [lifetimePuffs, setLifetimePuffs] = useState(0);
   const [nicotineStrength, setNicotineStrength] = useState('0');
   const isStrengthConfigured = parseFloat(nicotineStrength) > 0;
-  const [nicotineMg, setNicotineMg] = useState(0);
   const [lifetimeNicotineMg, setLifetimeNicotineMg] = useState(0);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [lastResetDate, setLastResetDate] = useState<string | null>(null);
@@ -101,6 +100,9 @@ const HomeScreen = (
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [extendedTips, setExtendedTips] = useState<string[]>([]);
   const [fadeTipAnim] = useState(new Animated.Value(1)); // Starts visible
+  const [showEditCountModal, setShowEditCountModal] = useState(false);
+  const [editCountValue, setEditCountValue] = useState('');
+  const [isPuffButtonDisabled, setIsPuffButtonDisabled] = useState(false);
 
 
 
@@ -246,24 +248,40 @@ const HomeScreen = (
 
 
 
+  // Remove redeclaration and move fadeTipAnim to a single declaration at the top of the component
+  // Only declare tipIndex and setTipIndex here
   const [tipIndex, setTipIndex] = useState(0);
-  const flatListRef = useRef<FlatList<string>>(null);
+  const [displayedTipIndex, setDisplayedTipIndex] = useState(0);
 
-  useEffect(() => {
-    if (carouselTips.length === 0) return;
+useEffect(() => {
+  if (carouselTips.length === 0) return;
 
-    const interval = setInterval(() => {
-      let nextIndex = tipIndex + 2; // +1 for clone offset, +1 for next
+  let timeout: NodeJS.Timeout;
 
-      if (nextIndex >= extendedTips.length) {
-        nextIndex = 1; // jump back to start
-      }
+  const fadeOutAndIn = () => {
+    Animated.timing(fadeTipAnim, {
+      toValue: 0,
+      duration: 500,
+      useNativeDriver: true,
+    }).start(() => {
+      // Only now update the displayed tip index
+      setDisplayedTipIndex((prev) => {
+        const next = (prev + 1) % carouselTips.length;
+        // After updating, fade in the new tip
+        Animated.timing(fadeTipAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+        return next;
+      });
+    });
+  };
 
-      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-    }, 10000);
+  timeout = setInterval(fadeOutAndIn, 5000);
 
-    return () => clearInterval(interval);
-  }, [tipIndex, carouselTips, extendedTips]);
+  return () => clearInterval(timeout);
+}, [carouselTips, fadeTipAnim]);
 
 
 
@@ -278,7 +296,7 @@ const HomeScreen = (
     }
 
     // Set immediately
-    flatListRef.current?.scrollToIndex({ index: nextIndex, animated: false });
+    // flatListRef.current?.scrollToIndex({ index: nextIndex, animated: false }); // This line is removed
     setTipIndex((prev) => (prev + 1) % carouselTips.length);
   }, [isFocused]);
 
@@ -362,7 +380,51 @@ const HomeScreen = (
       }
     };
 
-    loadData();
+    const loadQuitPlanInfo = async () => {
+      const plan = await AsyncStorage.getItem('quitPlanData');
+      if (!plan) {
+        setTodayLimit(null);
+        setQuitDate('Not set');
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(plan);
+        const { puffLimitData, startDate, targetDate, quitDateStored } = parsed;
+
+        if (targetDate) {
+          const formatted = new Date(targetDate).toLocaleDateString();
+          setQuitDate(formatted);
+        } else {
+          setQuitDate('Not set');
+        }
+
+        if (quitDateStored && Array.isArray(puffLimitData) && startDate) {
+          const start = new Date(startDate);
+          const now = new Date();
+          const daysPassed = Math.floor(
+            (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+             new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) /
+            (1000 * 60 * 60 * 24)
+          );
+
+          const limit = puffLimitData[daysPassed] ?? null;
+          setTodayLimit(typeof limit === 'number' ? limit : null);
+        } else {
+          setTodayLimit(null);
+        }
+
+      } catch (err) {
+        console.error('Error loading plan info:', err);
+        setTodayLimit(null);
+        setQuitDate('Not set');
+      }
+    };
+
+    InteractionManager.runAfterInteractions(() => {
+      loadData();
+      loadQuitPlanInfo();
+    });
   }, []);
 
   const [quitDate, setQuitDate] = useState<string>('Not set');
@@ -429,6 +491,8 @@ useEffect(() => {
 
 
   const handlePuff = async () => {
+    if (isPuffButtonDisabled) return;
+    setIsPuffButtonDisabled(true);
     const strength = parseFloat(nicotineStrength) || 0;
     const nicotinePerPuff = 0.005 * strength;
     const now = new Date();
@@ -467,21 +531,23 @@ useEffect(() => {
     } catch (error) {
       console.error('Error saving puff data:', error);
     }
+    setTimeout(() => setIsPuffButtonDisabled(false), 500);
   };
 
   const animatePuffButton = () => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.9, // shrink to 90%
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
+    Animated.spring(scaleAnim, {
+      toValue: 0.9,
+      useNativeDriver: true,
+      tension: 120,
+      friction: 8,
+    }).start(() => {
+      Animated.spring(scaleAnim, {
         toValue: 1,
-        duration: 100,
         useNativeDriver: true,
-      }),
-    ]).start();
+        tension: 120,
+        friction: 8,
+      }).start();
+    });
   };
 
 
@@ -554,54 +620,6 @@ useEffect(() => {
       restoreLastPuff();
     }
   }, [isInitialized]);
-
-
-
-  useEffect(() => {
-    if (isModalVisible || isStrengthConfigured) {
-      console.log('[ANIMATION] Skipped due to modal open or strength configured.');
-      return;
-    }
-
-    console.log('[ANIMATION] Starting animation cycle');
-
-    const cycle = () => {
-      console.log('[ANIMATION] Fading out...', showStatsRef.current ? 'Showing stats' : 'Showing text');
-
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => {
-        showStatsRef.current = !showStatsRef.current;
-        setShowStats(showStatsRef.current);
-
-        console.log('[ANIMATION] Switched to:', showStatsRef.current ? 'Stats view' : '"Tap to Configure"');
-
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }).start(() => {
-          const nextDelay = showStatsRef.current ? 7000 : 3000;
-          console.log(`[ANIMATION] Will show this view for ${nextDelay / 1000} seconds`);
-          timeoutRef.current = setTimeout(cycle, nextDelay);
-        });
-      });
-    };
-
-    timeoutRef.current = setTimeout(() => {
-      console.log('[ANIMATION] Initial delay complete, running cycle...');
-      cycle();
-    }, showStatsRef.current ? 7000 : 3000);
-
-    return () => {
-      console.log('[ANIMATION] Cleaning up timeout');
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [isModalVisible, isStrengthConfigured]);
-
-
 
 
 
@@ -686,21 +704,20 @@ useEffect(() => {
         <Text style={styles.tipTitle}>Quitting Tips</Text>
         {isFocused && (
         <Animated.View style={{ opacity: fadeTipAnim }}>
-          <Text style={[styles.tipText, { textAlign: 'left' }]}>
-            {carouselTips[tipIndex]}
-          </Text>
+          <Text style={[styles.tipText, { textAlign: 'left' }]}> {carouselTips[displayedTipIndex]} </Text>
         </Animated.View>
         )}
       </View>
 
 
-      <LinearGradient
-        colors={['#EF4444', '#3B82F6']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.puffGradient}
-      >
-        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      {/* Puff Button with animated shrink/grow */}
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <LinearGradient
+          colors={['#EF4444', '#3B82F6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.puffGradient}
+        >
           <TouchableOpacity
             onPress={() => {
               animatePuffButton(); // 🔁 play animation
@@ -708,12 +725,15 @@ useEffect(() => {
             }}
             style={styles.puffButton}
             activeOpacity={1}
+            disabled={isPuffButtonDisabled}
           >
-            <Ionicons name="add" size={30} color="#000" />
-            <Text style={styles.puffButtonText}>PUFF</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="add" size={30} color="#000" />
+                <Text style={styles.puffButtonText}>PUFF</Text>
+            </View>
           </TouchableOpacity>
-        </Animated.View>
-      </LinearGradient>
+        </LinearGradient>
+      </Animated.View>
 
 
 
@@ -743,6 +763,43 @@ useEffect(() => {
               <Text style={styles.inputUnit}>mg/ml</Text>
             </View>
             <Pressable style={styles.saveButton} onPress={handleSave}>
+              <Text style={styles.saveButtonText}>Save</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Puff Count Modal */}
+      <Modal
+        transparent={true}
+        visible={showEditCountModal}
+        animationType="fade"
+        onRequestClose={() => setShowEditCountModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Your Count</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={editCountValue}
+                onChangeText={setEditCountValue}
+                placeholder="0"
+              />
+            </View>
+            <Pressable
+              style={styles.saveButton}
+              onPress={() => {
+                const val = parseInt(editCountValue, 10);
+                if (!isNaN(val) && val >= 0) {
+                  setPuffCount(val);
+                  setShowEditCountModal(false);
+                } else {
+                  Alert.alert('Invalid input', 'Please enter a valid number that is 0 or more.');
+                }
+              }}
+            >
               <Text style={styles.saveButtonText}>Save</Text>
             </Pressable>
           </View>
@@ -800,7 +857,8 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   puffGradient: {
-    width: '100%',
+    alignSelf: 'center',
+    minWidth: scale(220),
     borderRadius: scale(30),
     marginTop: verticalScale(30),
   },
@@ -809,15 +867,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: verticalScale(15),
-    paddingHorizontal: scale(40),
+    paddingHorizontal: scale(50),
     borderRadius: scale(30),
-    width: '100%',
+    position: 'relative',
+    minWidth: scale(200),
+    alignSelf: 'center',
   },
   puffButtonText: {
     color: '#000',
     fontSize: scale(20),
     fontWeight: '600',
-    marginLeft: scale(10),
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    paddingVertical: 0,
   },
   modalOverlay: {
     flex: 1,
@@ -954,7 +1017,7 @@ const styles = StyleSheet.create({
     borderRadius: scale(10),
     padding: scale(20),
     marginTop: verticalScale(20),
-    width: '100%',
+    width: '90%',
     height: verticalScale(140),
   },
   tipTitle: {
@@ -983,6 +1046,11 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(20),
   },
 });
+
+// Memoized tip item
+const TipItem = memo(({ tip }: { tip: string }) => (
+  <Text style={[styles.tipText, { textAlign: 'left' }]}>{tip}</Text>
+));
 
 
 export default forwardRef(HomeScreen);

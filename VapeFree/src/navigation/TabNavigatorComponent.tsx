@@ -46,12 +46,13 @@ const AppNavigator = () => {
         showReset?: boolean;
         onReset?: () => void;
         onVapePress?: () => void;
+        isHome?: boolean;
       } = {}
     ) => {
-      const { showReset = false, onReset } = options;
+      const { showReset = false, onReset, isHome = false } = options;
       return (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
-          <TopBar showReset={showReset} onReset={onReset} onVapePress={options.onVapePress} />
+          <TopBar showReset={showReset} onReset={onReset} onVapePress={options.onVapePress} isHome={isHome} />
           {ContentComponent}
         </View>
       );
@@ -61,6 +62,7 @@ const AppNavigator = () => {
       case 'home':
         return renderWithTopBar(<HomeScreen ref={homeRef} refreshKey={index} />, {
           onVapePress: () => homeRef.current?.openNicotineModal(),
+          isHome: true,
         });
 
       case 'goals':
@@ -69,11 +71,12 @@ const AppNavigator = () => {
           {
             showReset: true,
             onReset: () => goalsRef.current?.hardReset?.(),
+            isHome: false,
           }
         );
 
       case 'history':
-        return renderWithTopBar(<StatsScreen />);
+        return renderWithTopBar(<StatsScreen />, { isHome: false });
       default:
         return null;
     }

@@ -18,9 +18,9 @@ const Onboarding5 = () => {
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>Let’s Build Your Quit Plan</Text>
+        <Text style={styles.title}>Let’s Build Your Report</Text>
         <Text style={styles.subtitle}>
-          Just 3 questions left — your personalized quitting plan is almost ready.
+          Just 3 questions left — your personalized report is almost ready.
         </Text>
 
         <TouchableOpacity style={styles.button} onPress={handleNext}>

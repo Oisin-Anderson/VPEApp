@@ -120,10 +120,10 @@ const Onboarding6 = () => {
             contentContainerStyle={styles.modalScrollContainer}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.modalContainer}>
-              <Text style={styles.modalTitle}>Enter your daily puff count</Text>
+            <View style={styles.modalContentHome}>
+              <Text style={styles.modalTitleHome}>Enter your daily puff count</Text>
               <TextInput
-                style={styles.input}
+                style={styles.inputHome}
                 keyboardType="numeric"
                 value={customValue}
                 onChangeText={(text) => {
@@ -132,13 +132,10 @@ const Onboarding6 = () => {
                   setIsValid(!isNaN(num) && num > 0);
                   if (!isNaN(num) && num > 0) setSelected('Custom Amount');
                 }}
-                placeholder="Enter a number"
+                placeholder="500"
                 placeholderTextColor="#888"
               />
               <View style={styles.modalButtons}>
-                <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
                 <TouchableOpacity
                   disabled={!isValid}
                   onPress={() => {
@@ -147,11 +144,12 @@ const Onboarding6 = () => {
                       handleContinue();
                     }
                   }}
+                  style={styles.saveButtonHome}
                 >
-                  <Text style={[styles.okText, { opacity: isValid ? 1 : 0.4 }]}>OK</Text>
+                  <Text style={[styles.saveButtonTextHome, { opacity: isValid ? 1 : 0.4 }]}>OK</Text>
                 </TouchableOpacity>
               </View>
-              </View>
+            </View>
             </ScrollView>
           </KeyboardAvoidingView>
         )}
@@ -290,5 +288,53 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  modalContentHome: {
+    backgroundColor: '#1e1e1e',
+    paddingVertical: verticalScale(30),
+    paddingHorizontal: scale(30),
+    borderRadius: scale(20),
+    width: '90%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  modalTitleHome: {
+    fontSize: scale(24),
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: verticalScale(20),
+  },
+  inputHome: {
+    borderWidth: 1,
+    borderColor: '#fff',
+    borderRadius: scale(10),
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: scale(15),
+    textAlign: 'center',
+    fontSize: scale(16),
+    backgroundColor: '#1a1a1a',
+    color: '#fff',
+    width: '100%',
+    marginBottom: verticalScale(20),
+  },
+  saveButtonHome: {
+    backgroundColor: '#fff',
+    paddingVertical: verticalScale(15),
+    paddingHorizontal: scale(40),
+    borderRadius: scale(30),
+    marginTop: verticalScale(10),
+    width: '100%',
+    alignItems: 'center',
+  },
+  saveButtonTextHome: {
+    fontSize: scale(16),
+    fontWeight: 'bold',
+    color: '#000',
+    textAlign: 'center',
   },
 });

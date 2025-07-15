@@ -83,7 +83,7 @@ const Onboarding8 = () => {
       <View style={styles.content}>
         <Text style={styles.header}>When would you like to be Vape Free?</Text>
         <Text style={styles.subtext}>
-          Setting a goal helps you commit — even if it’s weeks or months away.
+          Setting a goal helps you commit, even if it’s weeks or months away.
         </Text>
 
         <View style={styles.optionContainer}>

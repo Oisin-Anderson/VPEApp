@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, TextInput, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, TextInput, Animated, Easing, InteractionManager, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LineChart } from 'react-native-chart-kit';
 import { usePuff } from '../context/PuffContext';
@@ -114,7 +114,7 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
   const [puffCount, setPuffCount] = useState('');
   const [quitDateStored, setQuitDateStored] = useState(false);
   const [puffsToday, setPuffToday] = useState(0);
-  const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [loading, setLoading] = useState(true); // Add loading state
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [storedPuffLimitData, setStoredPuffLimitData] = useState<number[]>([]);
   const navigation = useNavigation() as any;
@@ -137,7 +137,6 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
     } else if (diff > 0) {
       setTimeLeft(Math.floor(diff / 1000));
     }
-    setIsLoading(false); // Set loading to false after initial calculation
   }, [targetDate, quitDateStored]);
 
   useEffect(() => {
@@ -193,32 +192,6 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
       }
     };
 
-    if (quitDateStored && startDate) {
-      loadPuffData();
-    }
-  }, [targetDate, quitDateStored, startDate]); // ✅ safe, minimal dependencies
-
-
-  useEffect(() => {
-    const validPuffCount = typeof homePuffCount === 'number' && !isNaN(homePuffCount) ? homePuffCount : 0;
-    setPuffToday(validPuffCount);
-  }, [homePuffCount]);
-
-  const onDateChange = (event: any, selectedDate: Date | undefined) => {
-    const currentDate = selectedDate || targetDate;
-    const now = new Date();
-    const minDate = new Date();
-    minDate.setDate(minDate.getDate() + 6);
-    
-    if (currentDate < minDate) {
-      alert('Please select a future date.');
-      return;
-    }
-    setShowDatePicker(false);
-    setTargetDate(currentDate);
-  };
-
-  useEffect(() => {
     const loadStoredData = async () => {
       try {
         const json = await AsyncStorage.getItem('quitPlanData');
@@ -258,11 +231,36 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
         console.error('Failed to load quit plan data:', err);
       }
 
-      setIsLoading(false);
     };
 
-    loadStoredData();
-  }, []);
+    InteractionManager.runAfterInteractions(() => {
+      setLoading(true);
+      Promise.all([
+        loadPuffData(),
+        loadStoredData()
+      ]).finally(() => setLoading(false));
+    });
+  }, [puffCount]); // Also run when puffCount changes
+
+
+  useEffect(() => {
+    const validPuffCount = typeof homePuffCount === 'number' && !isNaN(homePuffCount) ? homePuffCount : 0;
+    setPuffToday(validPuffCount);
+  }, [homePuffCount]);
+
+  const onDateChange = (event: any, selectedDate: Date | undefined) => {
+    const currentDate = selectedDate || targetDate;
+    const now = new Date();
+    const minDate = new Date();
+    minDate.setDate(minDate.getDate() + 6);
+    
+    if (currentDate < minDate) {
+      alert('Please select a future date.');
+      return;
+    }
+    setShowDatePicker(false);
+    setTargetDate(currentDate);
+  };
 
   useEffect(() => {
     if (!quitDateStored && planPage !== 0) {
@@ -398,14 +396,14 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
 
   
   const puffLimitData = useMemo(() => {
-    if (isLoading) return [];
+    if (loading) return [];
 
     if (storedPuffLimitData.length > 0 && storedPuffLimitData.every(n => typeof n === 'number')) {
       return storedPuffLimitData; // ✅ freeze from stored version
     }
     console.warn('⚠️ Using fallback! puffLimitData was missing or corrupted.');
     return fallbackRandomizedSteps; // ❌ only runs if no stored data (dev safety)
-  }, [storedPuffLimitData]);
+  }, [storedPuffLimitData, loading]);
 
 
 
@@ -445,7 +443,7 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
   const timeComponents = timeLeft !== null ? formatTime(timeLeft) : formatTime(0);
   const { days, hours, minutes, seconds } = timeComponents;
 
-  const renderTimers = timeLeft !== null && !isNaN(timeLeft) && timeLeft > 0 && !isLoading;
+  const renderTimers = timeLeft !== null && !isNaN(timeLeft) && timeLeft > 0 && !loading;
 
   const graphDataReady =
   totalDays > 0 &&
@@ -648,6 +646,15 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
 
 
 
+  // Show loading indicator while loading
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.dualCard}>
@@ -725,6 +732,7 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
                 Math.min(verticalScale(240), SCREEN_HEIGHT * 0.3)
               )}
               yAxisLabel=""
+              withVerticalLabels={true}
               withDots={false}
               withInnerLines={false}
               withOuterLines={false}

@@ -42,10 +42,16 @@ const SettingsScreen = () => {
         body: '',
       });
     } else {
-      Alert.alert(
-        'Mail App Not Available',
-        'Email is not set up on this device. Please configure your mail app first.'
-      );
+      // Fallback: open default mail app with mailto link
+      const mailto = `mailto:oisin@oagames.xyz?subject=${encodeURIComponent(subject)}`;
+      try {
+        Linking.openURL(mailto);
+      } catch (e) {
+        Alert.alert(
+          'Mail App Not Available',
+          'Email is not set up on this device. Please configure your mail app first.'
+        );
+      }
     }
   };
 
@@ -59,10 +65,16 @@ const SettingsScreen = () => {
         body: '',
       });
     } else {
-      Alert.alert(
-        'Mail App Not Available',
-        'Email is not set up on this device. Please configure your mail app first.'
-      );
+      // Fallback: open default mail app with mailto link
+      const mailto = `mailto:oisin@oagames.xyz?subject=${encodeURIComponent(subject)}`;
+      try {
+        Linking.openURL(mailto);
+      } catch (e) {
+        Alert.alert(
+          'Mail App Not Available',
+          'Email is not set up on this device. Please configure your mail app first.'
+        );
+      }
     }
   };
 

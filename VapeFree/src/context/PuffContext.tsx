@@ -5,6 +5,8 @@ type PuffContextType = {
   setPuffCount: Dispatch<SetStateAction<number>>;
   quitGoal: string;
   setQuitGoal: Dispatch<SetStateAction<string>>;
+  nicotineMg: number;
+  setNicotineMg: Dispatch<SetStateAction<number>>;
 };
 
 const PuffContext = createContext<PuffContextType | undefined>(undefined);
@@ -12,6 +14,7 @@ const PuffContext = createContext<PuffContextType | undefined>(undefined);
 export const PuffProvider = ({ children }: { children: ReactNode }) => {
   const [puffCount, setPuffCount] = useState<number>(0);
   const [quitGoal, setQuitGoal] = useState<string>('');
+  const [nicotineMg, setNicotineMg] = useState<number>(0);
 
   return (
     <PuffContext.Provider
@@ -20,6 +23,8 @@ export const PuffProvider = ({ children }: { children: ReactNode }) => {
         setPuffCount,
         quitGoal,
         setQuitGoal,
+        nicotineMg,
+        setNicotineMg,
       }}
     >
       {children}

@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { SchedulableTriggerInputTypes } from 'expo-notifications/build/Notifications.types';
 
 // Cancel all scheduled notifications
 export const cancelAllReminders = async () => {
@@ -23,9 +24,28 @@ export const scheduleReminders = async (remindersPerDay: number) => {
         body: "Open the app and log your progress.",
       },
       trigger: {
+        type: SchedulableTriggerInputTypes.CALENDAR,
+        repeats: true,
         hour: triggerHour,
         minute: 0,
-        repeats: true,
+      },
+    });
+  }
+};
+
+// Schedule N notifications a few seconds apart for demo/testing
+export const scheduleDemoNotifications = async (count: number) => {
+  await cancelAllReminders();
+  for (let i = 0; i < count; i++) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Hello Gamer! Time to rise up!!!',
+        body: '',
+      },
+      trigger: {
+        type: SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: 5 + i * 5,
+        repeats: false,
       },
     });
   }

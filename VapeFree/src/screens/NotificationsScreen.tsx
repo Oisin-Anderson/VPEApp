@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { scheduleDemoNotifications } from '../services/notifications';
 
 const { width, height } = Dimensions.get('window');
 const scale = width / 375;
@@ -25,6 +26,9 @@ const NotificationsScreen = () => {
   const navigation = useNavigation<any>();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [remindersPerDay, setRemindersPerDay] = useState(3);
+  const [systemNotificationsEnabled, setSystemNotificationsEnabled] = useState<boolean | null>(null);
+  const prevSystemEnabled = useRef<boolean | null>(null);
+  const prevReminders = useRef<number>(3);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -32,9 +36,28 @@ const NotificationsScreen = () => {
       const count = await AsyncStorage.getItem(NOTIF_COUNT_KEY);
       setNotificationsEnabled(enabled !== 'false');
       setRemindersPerDay(count ? parseInt(count, 10) : 3);
+      // Check system notification permissions
+      const { status } = await Notifications.getPermissionsAsync();
+      setSystemNotificationsEnabled(status === 'granted');
     };
     fetchSettings();
   }, []);
+
+  // Schedule notifications when systemNotificationsEnabled becomes true
+  useEffect(() => {
+    if (systemNotificationsEnabled && !prevSystemEnabled.current) {
+      scheduleDemoNotifications(remindersPerDay);
+    }
+    prevSystemEnabled.current = systemNotificationsEnabled;
+  }, [systemNotificationsEnabled, remindersPerDay]);
+
+  // Schedule notifications when remindersPerDay changes and notifications are enabled
+  useEffect(() => {
+    if (systemNotificationsEnabled && prevReminders.current !== remindersPerDay) {
+      scheduleDemoNotifications(remindersPerDay);
+    }
+    prevReminders.current = remindersPerDay;
+  }, [remindersPerDay, systemNotificationsEnabled]);
 
   const changeReminders = async (delta: number) => {
     let newCount = remindersPerDay + delta;
@@ -57,22 +80,14 @@ const NotificationsScreen = () => {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.header}>Notifications</Text>
+        {/* 1. System notification status */}
         <View style={styles.option}>
           <Ionicons name="notifications" size={22} color="#fff" style={styles.icon} />
           <Text style={styles.label}>
-            Notifications: {notificationsEnabled ? 'ON' : 'OFF'}
+            App Notifications: {systemNotificationsEnabled === null ? '...' : systemNotificationsEnabled ? 'ON' : 'OFF'}
           </Text>
         </View>
-        <View style={styles.option}>
-          <TouchableOpacity
-            style={styles.statusButton}
-            onPress={openAppNotificationSettings}
-          >
-            <Text style={styles.statusButtonText}>
-              Open Notification Settings
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* 2. Reminders per Day */}
         <View style={styles.option}>
           <Ionicons name="repeat" size={22} color="#fff" style={styles.icon} />
           <Text style={styles.label}>Reminders per Day</Text>
@@ -94,6 +109,14 @@ const NotificationsScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
+        {/* 3. Open Notification Settings */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={openAppNotificationSettings}
+        >
+          <Ionicons name="settings" size={22} color="#fff" style={styles.icon} />
+          <Text style={styles.label}>Open Notification Settings</Text>
+        </TouchableOpacity>
       </ScrollView>
       <View style={styles.buttonWrapper}>
         <TouchableOpacity style={styles.closeButton} onPress={() => navigation.navigate('Settings')}>
@@ -172,18 +195,6 @@ const styles = StyleSheet.create({
     fontSize: scale * 16,
     fontWeight: 'bold',
     textAlign: 'center',
-  },
-  statusButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  statusButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: scale * 16,
   },
 });
 
