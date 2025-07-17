@@ -24,7 +24,8 @@ const Onboarding19 = () => {
         <Text style={styles.subtitle}>
           Manually enter your puffs each day so you become more mindful of your usage
         </Text>
-
+      </View>
+      <View style={styles.buttonWrapper}>
         <TouchableOpacity style={styles.button} onPress={handleNext}>
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>

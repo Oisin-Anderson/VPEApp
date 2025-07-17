@@ -24,7 +24,8 @@ const Onboarding20 = () => {
         <Text style={styles.subtitle}>
           Set a starting limit and quit date and we'll help you wean off your vape over time until you don't want it anymore
         </Text>
-
+      </View>
+      <View style={styles.buttonWrapper}>
         <TouchableOpacity style={styles.button} onPress={handleNext}>
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>

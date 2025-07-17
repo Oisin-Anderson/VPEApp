@@ -24,7 +24,8 @@ const Onboarding21 = () => {
         <Text style={styles.subtitle}>
           Look back at your journey and track your usage over time
         </Text>
-
+      </View>
+      <View style={styles.buttonWrapper}>
         <TouchableOpacity style={styles.button} onPress={handleNext}>
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>

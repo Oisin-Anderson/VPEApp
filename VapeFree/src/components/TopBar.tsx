@@ -1,6 +1,6 @@
 // components/TopBar.tsx
 import React from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, Dimensions } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,10 @@ import { useState } from 'react';
 import { Modal, Pressable, TextInput } from 'react-native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RootStackParamList } from '../navigation/types'; // adjust path if needed
+
+// Responsive scaling functions
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const scale = (size: number) => (SCREEN_WIDTH / 375) * size;
 
 
 const TopBar = ({
@@ -27,15 +31,10 @@ const TopBar = ({
 
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const route = useRoute();
-  const [showResetModal, setShowResetModal] = useState(false);
   const { puffCount, setPuffCount, nicotineMg, setNicotineMg } = usePuff();
   const [showEditCountModal, setShowEditCountModal] = useState(false);
   const [editCountValue, setEditCountValue] = useState('');
 
-
-  const handleReset = () => {
-    setShowResetModal(true);
-  };
 
   const handleEditCountSave = async () => {
     const val = parseInt(editCountValue, 10);
@@ -104,7 +103,7 @@ const TopBar = ({
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
           {showReset && (
-            <TouchableOpacity onPress={handleReset}>
+            <TouchableOpacity onPress={onReset}>
               <Ionicons name="refresh" size={24} color="#ffffff" />
             </TouchableOpacity>
           )}
@@ -131,85 +130,6 @@ const TopBar = ({
 
 
       
-      <Modal
-        transparent
-        visible={showResetModal}
-        animationType="fade"
-        onRequestClose={() => setShowResetModal(false)}
-      >
-        <View style={{
-          flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}>
-          <View style={{
-            backgroundColor: '#1e1e1e',
-            paddingVertical: 30,
-            paddingHorizontal: 30,
-            borderRadius: 20,
-            width: '90%',
-            alignItems: 'center',
-          }}>
-            <Text style={{
-              fontSize: 22,
-              fontWeight: 'bold',
-              color: '#fff',
-              marginBottom: 15,
-              textAlign: 'center',
-            }}>Reset Plan</Text>
-            <Text style={{
-              fontSize: 16,
-              color: '#ccc',
-              marginBottom: 25,
-              textAlign: 'center',
-            }}>
-              Are you sure you want to reset your plan?
-            </Text>
-
-            <LinearGradient
-              colors={['#EF4444', '#3B82F6']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{
-                borderRadius: 30,
-                width: '100%',
-              }}
-            >
-              <Pressable
-                style={{
-                  paddingVertical: 15,
-                  borderRadius: 30,
-                  alignItems: 'center',
-                }}
-                onPress={() => {
-                  setShowResetModal(false);
-                  onReset?.();
-                }}
-              >
-                <Text style={{ fontWeight: 'bold', color: '#000', fontSize: 16 }}>
-                  Reset Plan
-                </Text>
-              </Pressable>
-            </LinearGradient>
-
-            <Pressable
-              style={{
-                marginTop: 10,
-                paddingVertical: 15,
-                width: '100%',
-                backgroundColor: '#333',
-                borderRadius: 30,
-                alignItems: 'center',
-              }}
-              onPress={() => setShowResetModal(false)}
-            >
-              <Text style={{ color: '#fff', fontSize: 16 }}>Cancel</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
       {/* Edit Puff Count Modal */}
       <Modal
         transparent={true}

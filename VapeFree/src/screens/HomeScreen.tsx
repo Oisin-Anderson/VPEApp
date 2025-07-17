@@ -310,7 +310,7 @@ useEffect(() => {
 
 
 
-  const formattedNicotine = `${nicotineMg.toFixed(2)} mg`;
+  const formattedNicotine = `${Number(nicotineMg).toFixed(2)} mg`;
 
   useEffect(() => {
     const loadData = async (): Promise<void> => {
@@ -790,11 +790,45 @@ useEffect(() => {
             </View>
             <Pressable
               style={styles.saveButton}
-              onPress={() => {
+              onPress={async () => {
                 const val = parseInt(editCountValue, 10);
                 if (!isNaN(val) && val >= 0) {
+                  // Bulk edit logic: update puffTimes for today
+                  const today = new Date().toISOString().split('T')[0];
+                  const savedPuffTimes = await AsyncStorage.getItem(`puffTimes-${today}`);
+                  let puffTimes = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
+                  const prevCount = puffTimes.length;
+                  if (val > prevCount) {
+                    // Add new puffs, update last puff time
+                    const now = new Date();
+                    const nicotineStrength = await AsyncStorage.getItem('nicotineStrength');
+                    const strength = parseFloat(nicotineStrength || '0') || 0;
+                    for (let i = prevCount; i < val; i++) {
+                      puffTimes.push({ time: now.toISOString(), strength });
+                    }
+                    await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(puffTimes));
+                    await AsyncStorage.setItem('lastPuffTimestamp', now.toISOString());
+                    setLastPuffTime(now); // Force update immediately
+                  } else if (val < prevCount) {
+                    // Remove puffs, do not update last puff time
+                    puffTimes = puffTimes.slice(0, val);
+                    await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(puffTimes));
+                    if (val === 0) {
+                      setNicotineMg(0);
+                      await AsyncStorage.setItem(`nicotineMg-${today}`, '0');
+                      setLastPuffTime(null);
+                      await AsyncStorage.removeItem('lastPuffTimestamp');
+                    }
+                  }
                   setPuffCount(val);
                   setShowEditCountModal(false);
+                  // Always reload nicotineMg and lastPuffTime from storage after bulk edit
+                  setTimeout(async () => {
+                    const savedNicotineMg = await AsyncStorage.getItem(`nicotineMg-${today}`);
+                    setNicotineMg(savedNicotineMg ? parseFloat(savedNicotineMg) : 0);
+                    const lastPuffStr = await AsyncStorage.getItem('lastPuffTimestamp');
+                    setLastPuffTime(lastPuffStr ? new Date(lastPuffStr) : null);
+                  }, 0);
                 } else {
                   Alert.alert('Invalid input', 'Please enter a valid number that is 0 or more.');
                 }

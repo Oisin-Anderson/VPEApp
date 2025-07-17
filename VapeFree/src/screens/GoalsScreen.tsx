@@ -275,14 +275,37 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
 
 
   const resetData = async () => {
+    // Remove all puffTimes-YYYY-MM-DD keys for the previous plan's date range, except today
+    try {
+      const planData = await AsyncStorage.getItem('quitPlanData');
+      if (planData) {
+        const { startDate: prevStart, targetDate: prevTarget } = JSON.parse(planData);
+        if (prevStart && prevTarget) {
+          const start = new Date(prevStart);
+          const end = new Date(prevTarget);
+          const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+          const todayStr = new Date().toISOString().split('T')[0];
+          for (let i = 0; i < days; i++) {
+            const date = new Date(start);
+            date.setDate(start.getDate() + i);
+            const dateStr = date.toISOString().split('T')[0];
+            if (dateStr !== todayStr) {
+              await AsyncStorage.removeItem(`puffTimes-${dateStr}`);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // ignore errors
+    }
     await AsyncStorage.removeItem('quitPlanData');
-
 
     setShowModal(false); // Force close first
     setShowSecondModal(false);
     setQuitDateStored(false);
     setPuffCount('');
     setStoredPuffLimitData([]);
+    // Do NOT clear today's puff history data
     setTargetDate(() => {
       const newDate = new Date();
       newDate.setDate(newDate.getDate() + 7);
@@ -290,11 +313,9 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
     });
     setTimeLeft(null);
 
-    
-
     if (onHardReset) {
       onHardReset(); // ⬅️ trigger full remount
-      return;
+      // Do not return here, always show onboarding after reset
     }
 
     setTimeout(() => {
@@ -452,27 +473,40 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
   puffLimitData.every(n => typeof n === 'number' && !isNaN(n)) &&
   puffEnteredData.every(n => typeof n === 'number' && !isNaN(n));
 
-  const labelCount = 7;
-  const labelStep = Math.floor(totalDays / (labelCount - 1));
-
-  // Generate labels like [30, 25, 20, ..., 5]
-  // Generate label day values (e.g., 30, 25, ..., 1, 0)
-  let labelValues = Array.from({ length: labelCount - 1 }, (_, i) =>
-    totalDays - 1 - i * labelStep
-  );
-
-  // Always include Day 0
-  if (!labelValues.includes(0)) {
-    labelValues.push(0);
+  // Generate labels for the chart based on totalDays
+  let labels: string[] = [];
+  if (totalDays <= 11) {
+    // Show a label for every day
+    labels = Array.from({ length: totalDays }, (_, i) => (totalDays - 1 - i).toString());
+  } else if (totalDays === 12) {
+    // Show 12,10,8,6,4,2,0
+    const labelDays = [12, 10, 8, 6, 4, 2, 0];
+    labels = Array.from({ length: totalDays }, (_, i) => {
+      const dayLeft = totalDays - 1 - i;
+      return labelDays.includes(dayLeft) ? dayLeft.toString() : '';
+    });
+  } else if (totalDays === 11) {
+    // Show 11,9,7,5,3,1,0
+    const labelDays = [11, 9, 7, 5, 3, 1, 0];
+    labels = Array.from({ length: totalDays }, (_, i) => {
+      const dayLeft = totalDays - 1 - i;
+      return labelDays.includes(dayLeft) ? dayLeft.toString() : '';
+    });
+  } else {
+    // For more than 12 days, show max 11 labels spaced as evenly as possible, always including 0 and totalDays-1
+    const maxLabels = 11;
+    const step = Math.ceil((totalDays - 1) / (maxLabels - 1));
+    let labelDays = [];
+    for (let d = totalDays - 1; d >= 0; d -= step) {
+      labelDays.push(d);
+    }
+    if (labelDays[labelDays.length - 1] !== 0) labelDays.push(0);
+    labelDays = Array.from(new Set(labelDays)).sort((a, b) => b - a);
+    labels = Array.from({ length: totalDays }, (_, i) => {
+      const dayLeft = totalDays - 1 - i;
+      return labelDays.includes(dayLeft) ? dayLeft.toString() : '';
+    });
   }
-
-  labelValues = [...new Set(labelValues)].sort((a, b) => b - a);
-
-  const labels = Array.from({ length: totalDays }, (_, i) => {
-    const dayLeft = totalDays - 1 - i; // index 0 = highest day, end = 0
-    return labelValues.includes(dayLeft) ? dayLeft.toString() : '';
-  });
-
 
 
   useEffect(() => {
@@ -490,7 +524,7 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
 
   useImperativeHandle(ref, () => ({
     resetData,
-    triggerResetModal: () => setShowSecondModal(true), // ✅ exposes the modal trigger
+    triggerResetModal: () => setShowResetConfirmModal(true), // Use a dedicated modal for TopBar reset
   }));
 
 
@@ -509,7 +543,48 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
   }, [planPage, quitDateStored, handleFinish]);
 
 
-
+  // Update the red line (puffEnteredData) immediately when today's puff count changes or after reset
+  useEffect(() => {
+    if (!startDate || !targetDate) return;
+    const updateTodayPuffHistory = async () => {
+      const totalDays = Math.ceil((targetDate.getTime() - startDate.getTime()) / 86400000) + 1;
+      const newData: number[] = [];
+      const todayStr = new Date().toISOString().split('T')[0];
+      for (let i = 0; i < totalDays; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+        if (i === 0 && dateStr === todayStr) {
+          // Always use today's puff count for the first day if today is the first day
+          const json = await AsyncStorage.getItem(`puffTimes-${todayStr}`);
+          if (json) {
+            try {
+              const entries = JSON.parse(json);
+              newData.push(Array.isArray(entries) ? entries.length : 0);
+            } catch {
+              newData.push(0);
+            }
+          } else {
+            newData.push(0);
+          }
+        } else {
+          const json = await AsyncStorage.getItem(`puffTimes-${dateStr}`);
+          if (json) {
+            try {
+              const entries = JSON.parse(json);
+              newData.push(Array.isArray(entries) ? entries.length : 0);
+            } catch {
+              newData.push(0);
+            }
+          } else {
+            newData.push(0);
+          }
+        }
+      }
+      setPuffHistoryData(newData);
+    };
+    updateTodayPuffHistory();
+  }, [homePuffCount, startDate, targetDate]);
 
 
   if (!quitDateStored) {
@@ -536,6 +611,11 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
               const min = new Date();
               min.setDate(min.getDate() + 7);
               return min;
+            })()}
+            maximumDate={(() => {
+              const max = new Date();
+              max.setDate(max.getDate() + 90);
+              return max;
             })()}
             mode="date"
             display="default"
@@ -617,44 +697,6 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
 }
 
 
-  <Modal
-    transparent={true}
-    visible={showSecondModal}
-    animationType="fade"
-    onRequestClose={() => setShowSecondModal(false)}
-  >
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <Text style={styles.modalTitle}>Reset Quit Plan</Text>
-        <Text style={styles.modalText}>This will delete your current plan and allow you to start over.</Text>
-
-        <Pressable style={styles.saveButton} onPress={resetData}>
-          <Text style={styles.saveButtonText}>Reset Plan</Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.saveButton, { backgroundColor: '#333', marginTop: 10 }]}
-          onPress={() => setShowSecondModal(false)}
-        >
-          <Text style={[styles.saveButtonText, { color: '#fff' }]}>Cancel</Text>
-        </Pressable>
-      </View>
-    </View>
-  </Modal>
-
-
-
-
-
-  // Show loading indicator while loading
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#3B82F6" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.dualCard}>
@@ -696,11 +738,8 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
       </View>
 
       <View style={styles.graphContainer}>
-       <Text style={styles.graphTitle}>Puff Reduction Plan</Text>
+        <Text style={styles.graphTitle}>Puff Reduction Plan</Text>
         {graphDataReady ? (
-
-          
-          
           <View
             style={{
               width: SCREEN_WIDTH * 0.9, // 🟢 same as StatsScreen
@@ -757,14 +796,34 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
               }}
             />
           </View>
-
-
-
         ) : (
           <Text style={styles.errorText}>Loading graph data...</Text>
         )}
       </View>
-      
+
+      {/* Reset confirmation modal for TopBar reset */}
+      <Modal
+        transparent={true}
+        visible={showResetConfirmModal}
+        animationType="fade"
+        onRequestClose={() => setShowResetConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Reset Quit Plan</Text>
+            <Text style={styles.modalText}>This will delete your current plan and allow you to start over.</Text>
+            <Pressable style={styles.saveButton} onPress={() => { setShowResetConfirmModal(false); resetData(); }}>
+              <Text style={styles.saveButtonText}>Reset Plan</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.saveButton, { backgroundColor: '#333', marginTop: 10 }]}
+              onPress={() => setShowResetConfirmModal(false)}
+            >
+              <Text style={[styles.saveButtonText, { color: '#fff' }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 });

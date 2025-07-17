@@ -52,12 +52,17 @@ export const imgStyle = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
+  buttonWrapper: {
+    marginTop: 'auto',
+    paddingHorizontal: scale(30),
+    width: '100%',
+  },
   button: {
     backgroundColor: '#fff',
     borderRadius: scale(30),
     paddingVertical: 15,
     paddingHorizontal: scale(40),
-    marginBottom: Platform.OS === 'android' ? 40 : 30,
+    marginBottom: Platform.OS === 'android' ? 60 : 30,
     width: '100%',
   },
   buttonText: {

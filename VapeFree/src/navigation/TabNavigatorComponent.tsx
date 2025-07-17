@@ -70,7 +70,7 @@ const AppNavigator = () => {
           <GoalsScreen ref={goalsRef} />,
           {
             showReset: true,
-            onReset: () => goalsRef.current?.hardReset?.(),
+            onReset: () => goalsRef.current?.triggerResetModal?.(),
             isHome: false,
           }
         );

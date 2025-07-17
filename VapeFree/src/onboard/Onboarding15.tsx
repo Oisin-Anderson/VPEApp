@@ -24,7 +24,8 @@ const Onboarding15 = () => {
         <Text style={styles.subtitle}>
           By reducing your puff count, which will allow you to use your money for something better
         </Text>
-
+      </View>
+      <View style={styles.buttonWrapper}>
         <TouchableOpacity style={styles.button} onPress={handleNext}>
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>

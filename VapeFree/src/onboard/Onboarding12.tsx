@@ -5,11 +5,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { usePuff } from '../context/PuffContext';
 import ProgressBar from '../components/ProgressBar';
+import { sharedStyles as styles, scale, verticalScale } from '../styles/choiceStyle';
 
 // Responsive scaling functions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const scale = (size: number) => (SCREEN_WIDTH / 375) * size;
-const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size;
 
 const quitGoalDaysMap: Record<string, number> = {
   '1 week': 7,
@@ -50,34 +49,31 @@ const Onboarding12 = () => {
   return (
     <View style={styles.container}>
       <ProgressBar currentStep={3} totalSteps={6} />
-      <View style={styles.textBlock}>
-        <Text style={styles.topText}>
-          If you stick to your goal, you could save
-        </Text>
-
-        <MaskedView maskElement={<Text style={styles.gradientText}>€{moneySaved.toFixed(2)}</Text>}>
-          <LinearGradient
-            colors={['#EF4444', '#3B82F6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <Text style={[styles.gradientText, { opacity: 0 }]}>€{moneySaved.toFixed(2)}</Text>
-          </LinearGradient>
-        </MaskedView>
-
-        <Text style={styles.bottomText}>
-          this year alone.
-          {'\n'}Think of what you could do with that money...
-        </Text>
-      </View>
-
-      <View style={styles.bottomBlock}>
-        <Text style={styles.caption}>
+      <View style={styles.content}>
+        <View style={{ flex: 1, justifyContent: 'center', width: '100%' }}>
+          <Text style={{ color: '#fff', fontSize: scale(18), textAlign: 'center', marginBottom: verticalScale(16), lineHeight: verticalScale(26) }}>
+            If you stick to your goal, you could save
+          </Text>
+          <MaskedView maskElement={<Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center' }}>€{moneySaved.toFixed(2)}</Text>}>
+            <LinearGradient
+              colors={['#EF4444', '#3B82F6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center', opacity: 0 }}>€{moneySaved.toFixed(2)}</Text>
+            </LinearGradient>
+          </MaskedView>
+          <Text style={{ color: '#fff', fontSize: scale(18), textAlign: 'center', marginTop: verticalScale(16), lineHeight: verticalScale(26) }}>
+            this year alone. {'\n'}Think of what you could do with that money...
+          </Text>
+        </View>
+        <Text style={{ color: '#aaa', fontSize: scale(13), textAlign: 'center', marginBottom: verticalScale(20), paddingHorizontal: scale(10) }}>
           Based on your daily puff count and quit goal. Again this is a rough estimate depending on the vapes you use.
         </Text>
-
-        <TouchableOpacity style={styles.button} onPress={handleContinue}>
-          <Text style={styles.buttonText}>Keep your money</Text>
+      </View>
+      <View style={styles.buttonWrapper}>
+        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+          <Text style={styles.continueText}>Learn how to Keep your money</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -85,62 +81,3 @@ const Onboarding12 = () => {
 };
 
 export default Onboarding12;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-    paddingHorizontal: scale(24),
-    justifyContent: 'space-between',
-    paddingTop: verticalScale(60),
-    paddingBottom: Platform.OS === 'android' ? verticalScale(60) : verticalScale(30),
-  },
-  textBlock: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  topText: {
-    color: '#fff',
-    fontSize: scale(18),
-    textAlign: 'center',
-    marginBottom: verticalScale(16),
-    lineHeight: verticalScale(26),
-  },
-  gradientText: {
-    fontSize: scale(48),
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  bottomText: {
-    color: '#fff',
-    fontSize: scale(18),
-    textAlign: 'center',
-    marginTop: verticalScale(16),
-    lineHeight: verticalScale(26),
-  },
-  caption: {
-    color: '#aaa',
-    fontSize: scale(13),
-    textAlign: 'center',
-    marginBottom: verticalScale(20),
-    paddingHorizontal: scale(10),
-  },
-  button: {
-    backgroundColor: '#fff',
-    paddingVertical: verticalScale(16),
-    borderRadius: scale(30),
-    width: SCREEN_WIDTH - scale(48),
-    alignSelf: 'center',
-  },
-  buttonText: {
-    color: '#000',
-    fontWeight: '600',
-    fontSize: scale(16),
-    textAlign: 'center',
-  },
-  bottomBlock: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-});

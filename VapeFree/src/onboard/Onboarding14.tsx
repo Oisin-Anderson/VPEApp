@@ -24,7 +24,8 @@ const Onboarding14 = () => {
         <Text style={styles.subtitle}>
           By weaning you down over time, until you don't feel the need to vape anymore
         </Text>
-
+      </View>
+      <View style={styles.buttonWrapper}>
         <TouchableOpacity style={styles.button} onPress={handleNext}>
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>

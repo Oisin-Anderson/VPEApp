@@ -28,6 +28,7 @@ import TabNavigatorComponent from '../navigation/TabNavigatorComponent';
 import SettingsScreen from '../screens/SettingsScreen';
 import MembershipScreen from '../screens/MembershipScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import FutureUpdatesScreen from '../screens/FutureUpdatesScreen';
 // MainTabs is your current TabView screen
 
 const Stack = createStackNavigator();
@@ -40,6 +41,7 @@ const AppNavigator = () => {
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Membership" component={MembershipScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="FutureUpdates" component={FutureUpdatesScreen} />
       <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
       <Stack.Screen name="Onboarding2" component={Onboarding2} />
       <Stack.Screen name="Onboarding3" component={Onboarding3} />

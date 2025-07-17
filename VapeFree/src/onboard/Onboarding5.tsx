@@ -22,7 +22,8 @@ const Onboarding5 = () => {
         <Text style={styles.subtitle}>
           Just 3 questions left — your personalized report is almost ready.
         </Text>
-
+      </View>
+      <View style={styles.buttonWrapper}>
         <TouchableOpacity style={styles.button} onPress={handleNext}>
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>

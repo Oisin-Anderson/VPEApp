@@ -27,6 +27,8 @@ const MembershipScreen = () => {
 
   const [totalPuffs, setTotalPuffs] = useState(0);
   const [moneySaved, setMoneySaved] = useState(0);
+  const [avgDailyPuffs, setAvgDailyPuffs] = useState<number | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -49,10 +51,36 @@ const MembershipScreen = () => {
             }
           }
 
-          // Assume 500 puffs per vape = $10
-          const saved = (puffCount / 500) * 10;
-
           setTotalPuffs(puffCount);
+
+          // --- Load avgDailyPuffs and startDate ---
+          let avg = 0;
+          let start: Date | null = null;
+          try {
+            const avgStr = await AsyncStorage.getItem('avgDailyPuffs');
+            if (avgStr !== null) {
+              const parsed = parseFloat(avgStr);
+              if (!isNaN(parsed)) avg = parsed;
+            }
+            setAvgDailyPuffs(avg);
+          } catch {}
+          try {
+            const startStr = await AsyncStorage.getItem('startDate');
+            if (startStr) {
+              start = new Date(startStr);
+            }
+            setStartDate(start);
+          } catch {}
+
+          // --- Calculate money saved (same as StatsScreen) ---
+          const today = new Date();
+          const daysSinceStart = start
+            ? Math.max(Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1, 1)
+            : 1;
+          const expected = avg * daysSinceStart;
+          const originalCost = (expected / 500) * 10;
+          const actualCost = (puffCount / 500) * 10;
+          const saved = originalCost - actualCost;
           setMoneySaved(saved);
         } catch (err) {
           console.error('Failed to calculate savings:', err);

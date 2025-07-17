@@ -33,7 +33,8 @@ const Onboarding1 = () => {
         <Text style={styles.subtitle}>
           Starting today, let’s quit vaping and take back control of your life again.
         </Text>
-
+      </View>
+      <View style={styles.buttonWrapper}>
         <TouchableOpacity style={styles.button} onPress={handleNext}>
           <Text style={styles.buttonText}>Take Back Control</Text>
         </TouchableOpacity>

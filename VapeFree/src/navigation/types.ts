@@ -26,4 +26,6 @@ export type RootStackParamList = {
   Onboarding20: undefined;
   Onboarding21: undefined;
   Onboarding22: undefined;
+  Membership: undefined;
+  FutureUpdates: undefined;
 };
