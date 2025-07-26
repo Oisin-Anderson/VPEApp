@@ -34,7 +34,7 @@ const Onboarding22 = () => {
           We'll remind you to record your puffs a few times a day.
         </Text>
         <Text style={styles.message}>
-          Tap below to allow notifications and begins tracking.
+          Tap below to allow notifications and begin tracking.
         </Text>
       </View>
       <TouchableOpacity style={styles.button} onPress={handleContinue}>

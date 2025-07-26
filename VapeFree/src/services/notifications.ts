@@ -6,28 +6,28 @@ export const cancelAllReminders = async () => {
   await Notifications.cancelAllScheduledNotificationsAsync();
 };
 
-// Schedule reminders evenly throughout the day
-export const scheduleReminders = async (remindersPerDay: number) => {
+// Schedule reminders at specific times daily
+export const scheduleReminders = async () => {
   await cancelAllReminders();
 
-  const startHour = 8; // 8am
-  const endHour = 22; // 10pm
-  const interval = (remindersPerDay > 1)
-    ? (endHour - startHour) / (remindersPerDay - 1)
-    : 0;
+  // Schedule notifications at 12pm, 6pm, and 12am daily
+  const notificationTimes = [
+    { hour: 12, minute: 0 }, // 12:00 PM
+    { hour: 18, minute: 0 }, // 6:00 PM
+    { hour: 0, minute: 0 },  // 12:00 AM
+  ];
 
-  for (let i = 0; i < remindersPerDay; i++) {
-    const triggerHour = Math.round(startHour + i * interval);
+  for (const time of notificationTimes) {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Don't forget to track your puffs!",
-        body: "Open the app and log your progress.",
+        title: 'Remember to track your vape usage',
+        body: '',
       },
       trigger: {
         type: SchedulableTriggerInputTypes.CALENDAR,
-        repeats: true,
-        hour: triggerHour,
-        minute: 0,
+        hour: time.hour,
+        minute: time.minute,
+        repeats: true, // Repeat daily
       },
     });
   }
@@ -39,7 +39,7 @@ export const scheduleDemoNotifications = async (count: number) => {
   for (let i = 0; i < count; i++) {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Hello Gamer! Time to rise up!!!',
+        title: 'Remember to track your vape usage',
         body: '',
       },
       trigger: {

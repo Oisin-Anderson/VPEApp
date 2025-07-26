@@ -66,15 +66,22 @@ const TopBar = ({
         if (diff > 0) {
           newNicotineMg += diff * nicotinePerPuff;
         } else if (diff < 0) {
-          newNicotineMg = Math.max(0, currentNicotineMg + diff * nicotinePerPuff); // diff is negative
+          if (val <= 0) {
+            newNicotineMg = 0;
+          } else if (oldCount > 0) {
+            newNicotineMg = (val / oldCount) * currentNicotineMg;
+          }
         }
         // Update puffTimes array
         if (val > oldCount) {
           for (let i = oldCount; i < val; i++) {
             puffTimes.push({ time: new Date().toISOString(), strength });
           }
+          // Only update last puff time if puff count increased
+          await AsyncStorage.setItem('lastPuffTimestamp', new Date().toISOString());
         } else if (val < oldCount) {
           puffTimes = puffTimes.slice(0, val);
+          // Do not update last puff time if puff count decreased
         }
         // Save updates
         await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(puffTimes));

@@ -798,6 +798,7 @@ useEffect(() => {
                   const savedPuffTimes = await AsyncStorage.getItem(`puffTimes-${today}`);
                   let puffTimes = savedPuffTimes ? JSON.parse(savedPuffTimes) : [];
                   const prevCount = puffTimes.length;
+                  const prevNicotineMg = parseFloat(await AsyncStorage.getItem(`nicotineMg-${today}`) || '0');
                   if (val > prevCount) {
                     // Add new puffs, update last puff time
                     const now = new Date();
@@ -813,11 +814,19 @@ useEffect(() => {
                     // Remove puffs, do not update last puff time
                     puffTimes = puffTimes.slice(0, val);
                     await AsyncStorage.setItem(`puffTimes-${today}`, JSON.stringify(puffTimes));
-                    if (val === 0) {
+                    if (val <= 0) {
                       setNicotineMg(0);
                       await AsyncStorage.setItem(`nicotineMg-${today}`, '0');
                       setLastPuffTime(null);
                       await AsyncStorage.removeItem('lastPuffTimestamp');
+                    } else {
+                      // Proportionally reduce nicotineMg
+                      let newNicotineMg = 0;
+                      if (prevCount > 0) {
+                        newNicotineMg = (val / prevCount) * prevNicotineMg;
+                      }
+                      setNicotineMg(newNicotineMg);
+                      await AsyncStorage.setItem(`nicotineMg-${today}`, newNicotineMg.toString());
                     }
                   }
                   setPuffCount(val);

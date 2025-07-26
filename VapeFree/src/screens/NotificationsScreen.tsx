@@ -15,27 +15,25 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { scheduleDemoNotifications } from '../services/notifications';
+import { scheduleReminders } from '../services/notifications';
 
 const { width, height } = Dimensions.get('window');
 const scale = width / 375;
 
 const NOTIF_ENABLED_KEY = 'notificationsEnabled';
 const NOTIF_COUNT_KEY = 'notificationsPerDay';
+const MAX_REMINDERS = 15;
 
 const NotificationsScreen = () => {
   const navigation = useNavigation<any>();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [remindersPerDay, setRemindersPerDay] = useState(3);
   const [systemNotificationsEnabled, setSystemNotificationsEnabled] = useState<boolean | null>(null);
   const prevSystemEnabled = useRef<boolean | null>(null);
-  const prevReminders = useRef<number>(3);
 
   useEffect(() => {
     const fetchSettings = async () => {
       const enabled = await AsyncStorage.getItem(NOTIF_ENABLED_KEY);
-      const count = await AsyncStorage.getItem(NOTIF_COUNT_KEY);
       setNotificationsEnabled(enabled !== 'false');
-      setRemindersPerDay(count ? parseInt(count, 10) : 3);
       // Check system notification permissions
       const { status } = await Notifications.getPermissionsAsync();
       setSystemNotificationsEnabled(status === 'granted');
@@ -46,26 +44,10 @@ const NotificationsScreen = () => {
   // Schedule notifications when systemNotificationsEnabled becomes true
   useEffect(() => {
     if (systemNotificationsEnabled && !prevSystemEnabled.current) {
-      scheduleDemoNotifications(remindersPerDay);
+      scheduleReminders();
     }
     prevSystemEnabled.current = systemNotificationsEnabled;
-  }, [systemNotificationsEnabled, remindersPerDay]);
-
-  // Schedule notifications when remindersPerDay changes and notifications are enabled
-  useEffect(() => {
-    if (systemNotificationsEnabled && prevReminders.current !== remindersPerDay) {
-      scheduleDemoNotifications(remindersPerDay);
-    }
-    prevReminders.current = remindersPerDay;
-  }, [remindersPerDay, systemNotificationsEnabled]);
-
-  const changeReminders = async (delta: number) => {
-    let newCount = remindersPerDay + delta;
-    if (newCount < 1) newCount = 1;
-    if (newCount > 12) newCount = 12;
-    setRemindersPerDay(newCount);
-    await AsyncStorage.setItem(NOTIF_COUNT_KEY, newCount.toString());
-  };
+  }, [systemNotificationsEnabled]);
 
   const openAppNotificationSettings = () => {
     if (Platform.OS === 'ios') {
@@ -90,24 +72,8 @@ const NotificationsScreen = () => {
         {/* 2. Reminders per Day */}
         <View style={styles.option}>
           <Ionicons name="repeat" size={22} color="#fff" style={styles.icon} />
-          <Text style={styles.label}>Reminders per Day</Text>
-          <View style={styles.stepperContainer}>
-            <TouchableOpacity
-              style={styles.stepperButton}
-              onPress={() => changeReminders(-1)}
-              disabled={remindersPerDay <= 1}
-            >
-              <Ionicons name="remove" size={20} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.reminderCount}>{remindersPerDay}</Text>
-            <TouchableOpacity
-              style={styles.stepperButton}
-              onPress={() => changeReminders(1)}
-              disabled={remindersPerDay >= 10}
-            >
-              <Ionicons name="add" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.label}>Daily Reminders</Text>
+          <Text style={styles.reminderInfo}>12pm, 6pm, 12am</Text>
         </View>
         {/* 3. Open Notification Settings */}
         <TouchableOpacity
@@ -176,6 +142,11 @@ const styles = StyleSheet.create({
     fontSize: scale * 16,
     minWidth: 24,
     textAlign: 'center',
+  },
+  reminderInfo: {
+    color: '#aaa',
+    fontSize: scale * 14,
+    marginLeft: 'auto',
   },
   buttonWrapper: {
     paddingBottom: height * 0.04,

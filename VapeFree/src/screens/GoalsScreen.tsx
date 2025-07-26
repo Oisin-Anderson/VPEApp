@@ -186,7 +186,7 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
           }
         }
 
-        setPuffHistoryData(newData);
+        setPuffHistoryData(newData.reverse()); // reverse here
       } catch (err) {
         console.warn('Error loading puff history for graph:', err);
       }
@@ -376,14 +376,15 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
 
 
     // ✅ Store it in AsyncStorage
+    const reversedPlan = generatedPuffLimitData.slice().reverse();
     await AsyncStorage.setItem('quitPlanData', JSON.stringify({
       puffCount: count,
       targetDate: targetDate.toISOString(),
       startDate: startDate.toISOString(),         // ✅ save it properly
-      puffLimitData: generatedPuffLimitData,      // ✅ save precomputed data
+      puffLimitData: reversedPlan,      // ✅ save reversed plan
       quitDateStored: true,
     }));
-    setStoredPuffLimitData(generatedPuffLimitData); // ✅ Immediately use the new plan
+    setStoredPuffLimitData(reversedPlan); // ✅ Immediately use the reversed plan
 
 
     setShowSecondModal(false);
@@ -420,10 +421,10 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
     if (loading) return [];
 
     if (storedPuffLimitData.length > 0 && storedPuffLimitData.every(n => typeof n === 'number')) {
-      return storedPuffLimitData; // ✅ freeze from stored version
+      return storedPuffLimitData; // use as-is, already reversed
     }
     console.warn('⚠️ Using fallback! puffLimitData was missing or corrupted.');
-    return fallbackRandomizedSteps; // ❌ only runs if no stored data (dev safety)
+    return fallbackRandomizedSteps.slice().reverse(); // reverse fallback too
   }, [storedPuffLimitData, loading]);
 
 
@@ -442,7 +443,16 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
     return Math.min(daysPassed, puffLimitData.length - 1);
   }, [startDate, puffLimitData.length]);
 
-  const todayLimit = puffLimitData[todayIndex] ?? 0;
+  // --- PLAN OVER LOGIC ---
+  const daysPassed = useMemo(() => {
+    if (!startDate) return 0;
+    const truncateToDate = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.floor(
+      (truncateToDate(new Date()).getTime() - truncateToDate(startDate).getTime()) / (1000 * 60 * 60 * 24)
+    );
+  }, [startDate]);
+  const planIsOver = daysPassed >= totalDays || todayIndex >= puffLimitData.length;
+  const todayLimit = planIsOver ? null : puffLimitData[todayIndex] ?? null;
 
 
   const puffEnteredData = useMemo(() => {
@@ -512,7 +522,9 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
   useEffect(() => {
     if (!isFocused) return;
 
-    if (puffsToday < todayLimit) {
+    if (todayLimit === null) {
+      setPuffsTodayColor('#ffffff'); // default color if no limit
+    } else if (puffsToday < todayLimit) {
       setPuffsTodayColor('#22c55e'); // green
     } else if (puffsToday > todayLimit) {
       setPuffsTodayColor('#ef4444'); // red
@@ -609,7 +621,7 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
             value={targetDate}
             minimumDate={(() => {
               const min = new Date();
-              min.setDate(min.getDate() + 7);
+              min.setDate(min.getDate() + 6);
               return min;
             })()}
             maximumDate={(() => {
@@ -701,7 +713,7 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
     <View style={styles.container}>
       <View style={styles.dualCard}>
         <View style={styles.dualValue}>
-          <Text style={styles.cardNumber}>{todayLimit}</Text>
+          <Text style={styles.cardNumber}>{todayLimit === null ? 'Not Set' : todayLimit}</Text>
           <Text style={styles.cardLabel}>Limit Today</Text>
         </View>
         <View style={styles.dualValue}>
@@ -712,28 +724,34 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
 
 
       <View style={styles.timerContainer}>
-        <Text style={styles.timerTitle}>You'll be Vape Free in</Text>
-        {renderTimers ? (
-          <View style={styles.cardRow}>
-            <View style={styles.timerCard}>
-              <Text style={styles.cardNumber}>{days}</Text>
-              <Text style={styles.cardLabel}>Days</Text>
-            </View>
-            <View style={styles.timerCard}>
-              <Text style={styles.cardNumber}>{hours}</Text>
-              <Text style={styles.cardLabel}>Hours</Text>
-            </View>
-            <View style={styles.timerCard}>
-              <Text style={styles.cardNumber}>{minutes}</Text>
-              <Text style={styles.cardLabel}>Minutes</Text>
-            </View>
-            <View style={styles.timerCard}>
-              <Text style={styles.cardNumber}>{seconds}</Text>
-              <Text style={styles.cardLabel}>Seconds</Text>
-            </View>
-          </View>
+        {!planIsOver ? (
+          <>
+            <Text style={styles.timerTitle}>You'll be Vape Free in</Text>
+            {renderTimers ? (
+              <View style={styles.cardRow}>
+                <View style={styles.timerCard}>
+                  <Text style={styles.cardNumber}>{days}</Text>
+                  <Text style={styles.cardLabel}>Days</Text>
+                </View>
+                <View style={styles.timerCard}>
+                  <Text style={styles.cardNumber}>{hours}</Text>
+                  <Text style={styles.cardLabel}>Hours</Text>
+                </View>
+                <View style={styles.timerCard}>
+                  <Text style={styles.cardNumber}>{minutes}</Text>
+                  <Text style={styles.cardLabel}>Minutes</Text>
+                </View>
+                <View style={styles.timerCard}>
+                  <Text style={styles.cardNumber}>{seconds}</Text>
+                  <Text style={styles.cardLabel}>Seconds</Text>
+                </View>
+              </View>
+            ) : (
+              <Text style={[styles.errorText, { color: '#fff' }]}>Set a future date to start the timer</Text>
+            )}
+          </>
         ) : (
-          <Text style={styles.errorText}>Set a future quit date to start the timer</Text>
+          <Text style={[styles.errorText, { color: '#fff' }]}>Set a future date to start the timer</Text>
         )}
       </View>
 
@@ -754,12 +772,12 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
                 labels: labels,
                 datasets: [
                   {
-                    data: puffLimitData,
+                    data: puffLimitData, // use as-is
                     color: () => `#3B82F6`,
                     strokeWidth: 2,
                   },
                   {
-                    data: puffEnteredData,
+                    data: puffEnteredData, // use as-is
                     color: () => '#EF4444',
                     strokeWidth: 2,
                   },

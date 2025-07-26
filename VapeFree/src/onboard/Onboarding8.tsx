@@ -130,7 +130,7 @@ const Onboarding8 = () => {
         mode="date"
         onConfirm={handleDateConfirm}
         onCancel={() => setCalendarVisible(false)}
-        minimumDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
+        minimumDate={new Date(Date.now() + 6 * 24 * 60 * 60 * 1000)}
         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
         themeVariant={Platform.OS === 'ios' ? 'light' : 'dark'}
       />

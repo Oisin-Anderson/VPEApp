@@ -33,6 +33,13 @@ const SettingsScreen = () => {
   const navigation = useNavigation<any>();
 
   const emailHelp = async (subject: string) => {
+    if (Platform.OS === 'android') {
+      // For Android, open the website contact form
+      Linking.openURL('https://oagames.xyz/contact.html?type=help');
+      return;
+    }
+
+    // For iOS, use MailComposer with fallback
     const isAvailable = await MailComposer.isAvailableAsync();
 
     if (isAvailable) {
@@ -56,6 +63,13 @@ const SettingsScreen = () => {
   };
 
   const emailFeedback = async (subject: string) => {
+    if (Platform.OS === 'android') {
+      // For Android, open the website contact form
+      Linking.openURL('https://oagames.xyz/contact.html?type=feedback');
+      return;
+    }
+
+    // For iOS, use MailComposer with fallback
     const isAvailable = await MailComposer.isAvailableAsync();
 
     if (isAvailable) {
