@@ -6,6 +6,7 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import { usePuff } from '../context/PuffContext';
 import ProgressBar from '../components/ProgressBar';
 import { sharedStyles as styles, scale, verticalScale } from '../styles/choiceStyle';
+import { formatCurrency, formatUSDAsLocalCurrency } from '../services/currency';
 
 // Responsive scaling functions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -39,8 +40,8 @@ const Onboarding12 = () => {
   const adjustedTotalPuffs = preQuitPuffs + postQuitPuffs;
   const adjustedCost = ((adjustedTotalPuffs / 500) * 10);
 
-  const originalCost = ((puffCount * 365) / 500) * 10;
-  const moneySaved = originalCost - adjustedCost;
+  const originalCostUSD = ((puffCount * 365) / 500) * 10;
+  const moneySavedUSD = originalCostUSD - adjustedCost;
 
   const handleContinue = () => {
     navigation.navigate('Onboarding13');
@@ -54,13 +55,13 @@ const Onboarding12 = () => {
           <Text style={{ color: '#fff', fontSize: scale(18), textAlign: 'center', marginBottom: verticalScale(16), lineHeight: verticalScale(26) }}>
             If you stick to your goal, you could save
           </Text>
-          <MaskedView maskElement={<Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center' }}>€{moneySaved.toFixed(2)}</Text>}>
+          <MaskedView maskElement={<Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center' }}>{formatUSDAsLocalCurrency(moneySavedUSD)}</Text>}>
             <LinearGradient
               colors={['#EF4444', '#3B82F6']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center', opacity: 0 }}>€{moneySaved.toFixed(2)}</Text>
+              <Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center', opacity: 0 }}>{formatUSDAsLocalCurrency(moneySavedUSD)}</Text>
             </LinearGradient>
           </MaskedView>
           <Text style={{ color: '#fff', fontSize: scale(18), textAlign: 'center', marginTop: verticalScale(16), lineHeight: verticalScale(26) }}>

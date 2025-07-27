@@ -27,7 +27,8 @@
       "enableProguardInReleaseBuilds": true,
       "enableShrinkResourcesInReleaseBuilds": true,
       "navigationBarColor": "#000000",
-      "navigationBarStyle": "dark"
+      "navigationBarStyle": "dark",
+      "statusBarColor": "#000000"
     },
     "web": {
       "favicon": "./assets/favicon.png"

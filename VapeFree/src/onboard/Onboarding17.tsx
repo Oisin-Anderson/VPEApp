@@ -6,6 +6,7 @@ import { scale, verticalScale } from 'react-native-size-matters';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { formatCurrency, formatUSDAsLocalCurrency } from '../services/currency';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,32 +36,33 @@ const timelineSteps = [
   },
 ];
 
-const plans = [
-  {
-    id: 'yearly',
-    title: 'Yearly',
-    year: '$29.99',
-    perMonth: '$2.49',
-    badge: 'Most Popular - Save 50%',
-    trial: 'Try Free for 3 days',
-    productId: 'com.puffdaddy.yearly',
-  },
-  {
-    id: 'monthly',
-    title: 'Monthly',
-    year: '$59.99',
-    perMonth: '$4.99',
-    badge: '',
-    trial: '',
-    productId: 'com.puffdaddy.monthly',
-  },
-];
-
 const Onboarding17 = () => {
   const navigation = useNavigation<any>();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('yearly');
+
+  // Create plans with dynamic currency formatting
+  const plans = [
+    {
+      id: 'yearly',
+      title: 'Yearly',
+      year: formatUSDAsLocalCurrency(29.99),
+      perMonth: formatUSDAsLocalCurrency(2.49),
+      badge: 'Most Popular - Save 50%',
+      trial: 'Try Free for 3 days',
+      productId: 'com.puffdaddy.yearly',
+    },
+    {
+      id: 'monthly',
+      title: 'Monthly',
+      year: formatUSDAsLocalCurrency(59.99),
+      perMonth: formatUSDAsLocalCurrency(4.99),
+      badge: '',
+      trial: '',
+      productId: 'com.puffdaddy.monthly',
+    },
+  ];
 
   useEffect(() => {
     const initIAP = async () => {

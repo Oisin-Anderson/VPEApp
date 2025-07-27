@@ -4,6 +4,7 @@ import { LineChart } from 'react-native-chart-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePuff } from '../context/PuffContext';
 import { useFocusEffect } from '@react-navigation/native';
+import { formatCurrency, formatUSDAsLocalCurrency } from '../services/currency';
 
 
 const BASE_WIDTH = 375;
@@ -86,7 +87,7 @@ const StatsScreen = () => {
         const baseDate = new Date();
         
 
-        const fetchData = async (period: 'day' | 'week' | 'month' | 'year') => {
+        const fetchData = async (period: 'day' | 'week' | 'month' | 'year', startDate?: Date | null) => {
           let labels: string[] = [];
           let data: number[] = [];
           let entries: PuffEntry[] = [];
@@ -150,7 +151,17 @@ const StatsScreen = () => {
                 if (json) {
                   try {
                     const parsed = JSON.parse(json);
-                    entries.push(...parsed);
+                    // Filter entries to only include those on or after startDate
+                    if (startDate) {
+                      const startDateStr = startDate.toISOString().split('T')[0];
+                      const filteredEntries = parsed.filter((entry: PuffEntry) => {
+                        const entryDate = entry.time.split('T')[0];
+                        return entryDate >= startDateStr;
+                      });
+                      entries.push(...filteredEntries);
+                    } else {
+                      entries.push(...parsed);
+                    }
                   } catch {}
                 }
               }
@@ -197,10 +208,10 @@ const StatsScreen = () => {
         };
 
         const [day, week, month, year] = await Promise.all([
-          fetchData('day'),
-          fetchData('week'),
-          fetchData('month'),
-          fetchData('year'),
+          fetchData('day', firstLoginDate),
+          fetchData('week', firstLoginDate),
+          fetchData('month', firstLoginDate),
+          fetchData('year', firstLoginDate),
         ]);
 
         setChartDataMap({ day, week, month, year });
@@ -367,7 +378,19 @@ const StatsScreen = () => {
       if (json) {
         try {
           const entries = JSON.parse(json);
-          currentCount += Array.isArray(entries) ? entries.length : 0;
+          if (Array.isArray(entries)) {
+            // Filter entries to only include those on or after startDate
+            if (firstLoginDate) {
+              const startDateStr = firstLoginDate.toISOString().split('T')[0];
+              const filteredEntries = entries.filter((entry: PuffEntry) => {
+                const entryDate = entry.time.split('T')[0];
+                return entryDate >= startDateStr;
+              });
+              currentCount += filteredEntries.length;
+            } else {
+              currentCount += entries.length;
+            }
+          }
         } catch {}
       }
     }
@@ -377,7 +400,19 @@ const StatsScreen = () => {
       if (json) {
         try {
           const entries = JSON.parse(json);
-          prevCount += Array.isArray(entries) ? entries.length : 0;
+          if (Array.isArray(entries)) {
+            // Filter entries to only include those on or after startDate
+            if (firstLoginDate) {
+              const startDateStr = firstLoginDate.toISOString().split('T')[0];
+              const filteredEntries = entries.filter((entry: PuffEntry) => {
+                const entryDate = entry.time.split('T')[0];
+                return entryDate >= startDateStr;
+              });
+              prevCount += filteredEntries.length;
+            } else {
+              prevCount += entries.length;
+            }
+          }
         } catch {}
       }
     }
@@ -439,9 +474,73 @@ const StatsScreen = () => {
   
 
 
-  // Memoize chart data and stats
+  // Memoize chart data
   const memoizedChartDataMap = useMemo(() => chartDataMap, [chartDataMap]);
   const memoizedStatsMap = useMemo(() => statsMap, [statsMap]);
+
+  // When building chartData, filter out days before startDate
+  const filteredChartDataMap = useMemo(() => {
+    if (!firstLoginDate) return chartDataMap;
+    const startDateStr = firstLoginDate.toISOString().split('T')[0];
+    const filterData = (period: 'day' | 'week' | 'month' | 'year') => {
+      const { data, labels } = chartDataMap[period];
+      if (!data || !labels) return { data, labels };
+      // For each label (date), if before startDate, set to 0
+      let filteredData: number[] = data;
+      if (period === 'day') {
+        // For day view, if today >= startDate, use all 24 hours of data
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (todayStr >= startDateStr) {
+          filteredData = data; // Use all 24 hours of today's data
+        } else {
+          filteredData = Array(24).fill(0); // No data if before start date
+        }
+      } else if (period === 'week' || period === 'month') {
+        filteredData = labels.map((label: string, i: number) => {
+          // Reconstruct the date for this label
+          const daysAgo = data.length - 1 - i;
+          const date = new Date();
+          date.setDate(date.getDate() - daysAgo);
+          const dateStr = date.toISOString().split('T')[0];
+          return dateStr >= startDateStr ? data[i] : 0;
+        });
+      } else if (period === 'year') {
+        // For year, filter months before startDate and handle partial months
+        filteredData = labels.map((label: string, i: number) => {
+          // Reconstruct the month for this label
+          const d = new Date();
+          d.setMonth(d.getMonth() - (labels.length - 1 - i));
+          
+          // If this month is before the start month, exclude it
+          if (d.getFullYear() < firstLoginDate.getFullYear() || 
+              (d.getFullYear() === firstLoginDate.getFullYear() && d.getMonth() < firstLoginDate.getMonth())) {
+            return 0;
+          }
+          
+          // If this is the start month, check if we should include it based on days since start
+          if (d.getFullYear() === firstLoginDate.getFullYear() && d.getMonth() === firstLoginDate.getMonth()) {
+            // This is the start month - only include if we have data for days since start
+            const daysSinceStart = Math.max(
+              Math.floor((new Date().getTime() - firstLoginDate.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+              1
+            );
+            // If daysSinceStart is very small (like 1), we might not have much data for this month
+            // For now, we'll include the month data but the money saved calculation will handle the days properly
+            return data[i];
+          }
+          
+          return data[i];
+        });
+      }
+      return { data: filteredData, labels };
+    };
+    return {
+      day: filterData('day'),
+      week: filterData('week'),
+      month: filterData('month'),
+      year: filterData('year'),
+    };
+  }, [chartDataMap, firstLoginDate]);
 
   // Show loading indicator while loading
   if (loading) {
@@ -454,7 +553,7 @@ const StatsScreen = () => {
 
   return (
     <View style={[styles.container, { flex: 1 }]}>
-
+      {/* Temporary debug component - remove after testing */}
       
 
       <View style={{ minHeight: SCREEN_HEIGHT * 0.65, justifyContent: 'flex-start' }}>
@@ -462,7 +561,7 @@ const StatsScreen = () => {
         <View style={{ height: SCREEN_HEIGHT * 0.75, width: '100%' }}>
           <ScrollView showsVerticalScrollIndicator={true} style={{ flex: 1 }} contentContainerStyle={{ backgroundColor: '#000', flexGrow: 1 }}>
             {(['day', 'week', 'month', 'year'] as const).map((period) => {
-              const { data, labels } = memoizedChartDataMap[period];
+              const { data, labels } = filteredChartDataMap[period];
               const { total, avg, change } = memoizedStatsMap[period];
 
               if (!data.length || !labels.length) {
@@ -552,7 +651,7 @@ const StatsScreen = () => {
                     <View style={styles.statCard}>
                       <Text style={styles.statLabel}>Total ({period})</Text>
                       <Text style={styles.statValue}>
-                        {period === 'day' ? puffCount : memoizedChartDataMap[period]?.data?.reduce((a, b) => a + b, 0)}
+                        {period === 'day' ? puffCount : filteredChartDataMap[period]?.data?.reduce((a: number, b: number) => a + b, 0)}
                       </Text>
                     </View>
                     <View style={styles.statCard}>
@@ -565,16 +664,16 @@ const StatsScreen = () => {
                       </Text>
                       <Text style={styles.statValue}>
                         {(() => {
-                          const totalPuffs = memoizedChartDataMap[period]?.data?.reduce((a, b) => a + b, 0);
+                          const totalPuffs = filteredChartDataMap[period]?.data?.reduce((a: number, b: number) => a + b, 0);
                           if (period === 'day') {
                             const now = new Date();
                             const hours = now.getHours() + 1;
                             return Math.round(totalPuffs / hours);
                           } else if (period === 'week' || period === 'month') {
-                            const daysWithData = memoizedChartDataMap[period]?.data?.filter(v => v > 0).length || 1;
+                            const daysWithData = filteredChartDataMap[period]?.data?.filter((v: number) => v > 0).length || 1;
                             return Math.round(totalPuffs / daysWithData);
                           } else if (period === 'year') {
-                            const monthsWithData = memoizedChartDataMap[period]?.data?.filter(v => v > 0).length || 1;
+                            const monthsWithData = filteredChartDataMap[period]?.data?.filter((v: number) => v > 0).length || 1;
                             return Math.round(totalPuffs / monthsWithData);
                           }
                           return '-';
@@ -585,12 +684,8 @@ const StatsScreen = () => {
                     <View style={styles.statCard}>
                       <Text style={styles.statLabel}>Saved</Text>
                       {(() => {
-                        const totalPuffs = memoizedChartDataMap[period]?.data?.reduce((a, b) => a + b, 0);
-                        const avgDaily = avgDailyPuffsFromUser ?? 0;
-                        let periodLength = 1;
-                        if (period === 'week') periodLength = 7;
-                        else if (period === 'month') periodLength = 30;
-                        else if (period === 'year') periodLength = 365;
+                        const chartData: number[] = filteredChartDataMap[period]?.data || [];
+                        const avgDaily = avgDailyPuffsFromUser ?? 600; // Default to 600 if not set
                         const today = new Date();
                         const daysSinceStart = firstLoginDate
                           ? Math.max(
@@ -598,18 +693,36 @@ const StatsScreen = () => {
                               1
                             )
                           : 1;
-                        const daysUsed = Math.min(daysSinceStart, periodLength);
-                        const expected = avgDaily * daysUsed;
-                        const originalCost = (expected / 500) * 10;
-                        const adjustedCost = (totalPuffs / 500) * 10;
+                        let periodLength = 1;
+                        if (period === 'week') periodLength = 7;
+                        else if (period === 'month') periodLength = 30;
+                        else if (period === 'year') periodLength = 365;
+                        // For lifetime, use all days since install
+                        let daysInPeriod = period === 'year' ? Math.min(daysSinceStart, 365)
+                          : period === 'month' ? Math.min(daysSinceStart, 30)
+                          : period === 'week' ? Math.min(daysSinceStart, 7)
+                          : 1;
+                        if (period === 'day') daysInPeriod = daysSinceStart >= 1 ? 1 : 0;
+                        if (period === 'year' && daysSinceStart > 365) daysInPeriod = 365;
+                        // For day period, use current puffCount for immediate updates. For year period, use all months since start. For other periods, use the most recent N days
+                        const relevantPuffs = period === 'day' 
+                          ? puffCount // Use current puffCount for immediate updates
+                          : period === 'year'
+                          ? chartData.reduce((a: number, b: number) => a + b, 0) // Sum all months for year (filtered data already excludes old months)
+                          : chartData.slice(-daysInPeriod).reduce((a: number, b: number) => a + b, 0);
+                        const expectedPuffs = avgDaily * daysInPeriod;
+                        const originalCost = (expectedPuffs / 500) * 10;
+                        const adjustedCost = (relevantPuffs / 500) * 10;
                         const saved = originalCost - adjustedCost;
+                        
+                        
                         let color = '#ffffff';
                         let prefix = '';
                         if (saved > 0) color = '#00d600';
                         else if (saved < 0) { color = '#e50000'; prefix = '-'; }
                         return (
                           <Text style={[styles.statValue, { color }] }>
-                            {prefix}${Math.abs(saved).toFixed(2)}
+                            {prefix}{formatUSDAsLocalCurrency(Math.abs(saved))}
                           </Text>
                         );
                       })()}

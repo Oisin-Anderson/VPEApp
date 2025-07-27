@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from '
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { scheduleDemoNotifications } from '../services/notifications';
 
 // Responsive scaling functions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -14,14 +13,37 @@ const Onboarding22 = () => {
   const navigation = useNavigation<any>();
 
   const handleContinue = async () => {
-    // Show onboarding message first, then request notification permissions
-    await AsyncStorage.setItem('hasUsedApp', 'true');
-    await Notifications.requestPermissionsAsync();
-    // Get remindersPerDay from storage (default 3)
-    const countStr = await AsyncStorage.getItem('notificationsPerDay');
-    const remindersPerDay = countStr ? parseInt(countStr, 10) : 3;
-    scheduleDemoNotifications(remindersPerDay);
-    navigation.navigate('Onboarding23');
+    try {
+      console.log('Starting handleContinue...');
+      
+      // Show onboarding message first, then request notification permissions
+      await AsyncStorage.setItem('hasUsedApp', 'true');
+      console.log('hasUsedApp set to true');
+      
+      try {
+        const permissionResult = await Notifications.requestPermissionsAsync();
+        console.log('Permission result:', permissionResult);
+      } catch (permissionError) {
+        console.log('Permission request failed, but continuing:', permissionError);
+      }
+      
+      // Schedule the standard daily reminders (12pm, 6pm, 12am)
+      try {
+        const { scheduleReminders } = await import('../services/notifications');
+        await scheduleReminders();
+        console.log('Notifications scheduled successfully');
+      } catch (notificationError) {
+        console.log('Notification scheduling failed, but continuing:', notificationError);
+        // Continue even if notification scheduling fails
+      }
+      
+      console.log('Navigating to Onboarding23...');
+      navigation.navigate('Onboarding23');
+    } catch (error) {
+      console.error('Error in handleContinue:', error);
+      // Still navigate even if there's an error
+      navigation.navigate('Onboarding23');
+    }
   };
 
   return (

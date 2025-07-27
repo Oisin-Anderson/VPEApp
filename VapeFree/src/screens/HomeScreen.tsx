@@ -408,7 +408,10 @@ useEffect(() => {
             (1000 * 60 * 60 * 24)
           );
 
-          const limit = puffLimitData[daysPassed] ?? null;
+          // Since puffLimitData is stored as reversed (highest to lowest), 
+          // we need to flip the index to get the correct limit for today
+          const flippedIndex = puffLimitData.length - 1 - Math.min(daysPassed, puffLimitData.length - 1);
+          const limit = puffLimitData[flippedIndex] ?? null;
           setTodayLimit(typeof limit === 'number' ? limit : null);
         } else {
           setTodayLimit(null);
@@ -450,20 +453,23 @@ useEffect(() => {
         setQuitDate('Not set');
       }
 
-      if (quitDateStored && Array.isArray(puffLimitData) && startDate) {
-        const start = new Date(startDate);
-        const now = new Date();
-        const daysPassed = Math.floor(
-          (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
-           new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) /
-          (1000 * 60 * 60 * 24)
-        );
+              if (quitDateStored && Array.isArray(puffLimitData) && startDate) {
+          const start = new Date(startDate);
+          const now = new Date();
+          const daysPassed = Math.floor(
+            (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+             new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) /
+            (1000 * 60 * 60 * 24)
+          );
 
-        const limit = puffLimitData[daysPassed] ?? null;
-        setTodayLimit(typeof limit === 'number' ? limit : null);
-      } else {
-        setTodayLimit(null);
-      }
+          // Since puffLimitData is stored as reversed (highest to lowest), 
+          // we need to flip the index to get the correct limit for today
+          const flippedIndex = puffLimitData.length - 1 - Math.min(daysPassed, puffLimitData.length - 1);
+          const limit = puffLimitData[flippedIndex] ?? null;
+          setTodayLimit(typeof limit === 'number' ? limit : null);
+        } else {
+          setTodayLimit(null);
+        }
 
     } catch (err) {
       console.error('Error loading plan info:', err);

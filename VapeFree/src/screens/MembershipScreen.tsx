@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { formatCurrency, formatUSDAsLocalCurrency } from '../services/currency';
 
 
 const { width, height } = Dimensions.get('window');
@@ -62,6 +63,7 @@ const MembershipScreen = () => {
               const parsed = parseFloat(avgStr);
               if (!isNaN(parsed)) avg = parsed;
             }
+            if (avg === 0) avg = 600; // Default to 600 if not set
             setAvgDailyPuffs(avg);
           } catch {}
           try {
@@ -77,11 +79,49 @@ const MembershipScreen = () => {
           const daysSinceStart = start
             ? Math.max(Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1, 1)
             : 1;
-          const expected = avg * daysSinceStart;
-          const originalCost = (expected / 500) * 10;
-          const actualCost = (puffCount / 500) * 10;
-          const saved = originalCost - actualCost;
-          setMoneySaved(saved);
+          let avgForCalc = avg;
+          if (avgForCalc === 0) avgForCalc = 600; // Default to 600 if not set
+          // Get all puff keys and filter to only include dates since app was loaded
+          let relevantPuffCount = 0;
+          if (start) {
+            const startDateStr = start.toISOString().split('T')[0];
+            const todayStr = today.toISOString().split('T')[0];
+            const relevantKeys = puffKeys.filter(key => {
+              const datePart = key.split('puffTimes-')[1];
+              return datePart >= startDateStr && datePart <= todayStr;
+            });
+            for (const key of relevantKeys) {
+              const json = await AsyncStorage.getItem(key);
+              if (json) {
+                try {
+                  const entries = JSON.parse(json);
+                  if (Array.isArray(entries)) {
+                    relevantPuffCount += entries.length;
+                  }
+                } catch {}
+              }
+            }
+          } else {
+            relevantPuffCount = puffCount; // fallback to total if no start date
+          }
+          const expected = avgForCalc * daysSinceStart;
+const originalCost = (expected / 500) * 10;
+const actualCost = (relevantPuffCount / 500) * 10;
+const saved = originalCost - actualCost;
+
+// Debug logging for lifetime
+console.log(`=== LIFETIME CALCULATION ===`);
+console.log(`avgForCalc: ${avgForCalc}`);
+console.log(`daysSinceStart: ${daysSinceStart}`);
+console.log(`totalPuffs: ${puffCount}`);
+console.log(`relevantPuffCount: ${relevantPuffCount}`);
+console.log(`expected: ${expected}`);
+console.log(`originalCost: $${originalCost.toFixed(2)}`);
+console.log(`actualCost: $${actualCost.toFixed(2)}`);
+console.log(`moneySaved: $${saved.toFixed(2)}`);
+console.log(`========================`);
+
+setMoneySaved(saved);
         } catch (err) {
           console.error('Failed to calculate savings:', err);
         }
@@ -134,7 +174,7 @@ const MembershipScreen = () => {
           <Pressable style={styles.popup} onPress={() => {}}>
             <Text style={styles.popupTitle}>Quitting Already?</Text>
             <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 10 }}>
-              You've saved <Text style={{ color: '#00d600' }}>${moneySaved.toFixed(2)}</Text> since you started using this app. Would you like to keep saving even more?
+              You've saved <Text style={{ color: '#00d600' }}>{formatUSDAsLocalCurrency(moneySaved)}</Text> since you started using this app. Would you like to keep saving even more?
             </Text>
             <View style={styles.buttonRow}>
               <TouchableOpacity style={styles.confirmButton} onPress={() => setShowCancelPopup(false)}>

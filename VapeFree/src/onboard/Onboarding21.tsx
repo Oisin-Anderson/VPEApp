@@ -1,6 +1,6 @@
 // src/screens/Onboarding1.tsx
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native'; // Add this line
 import { imgStyle as styles } from '../styles/imgStyle';
 import ProgressBar from '../components/ProgressBar';
@@ -16,7 +16,11 @@ const Onboarding21 = () => {
     <View style={styles.container}>
       <ProgressBar currentStep={3} totalSteps={3} />
       <View style={styles.videoContainer}>
-        
+        <Image 
+          source={require('../../assets/StatsScreen.jpg')} 
+          style={styles.video}
+          resizeMode="contain"
+        />
       </View>
 
       <View style={styles.content}>

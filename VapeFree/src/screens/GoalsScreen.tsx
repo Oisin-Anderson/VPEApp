@@ -440,7 +440,10 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
     );
 
     
-    return Math.min(daysPassed, puffLimitData.length - 1);
+    // Since puffLimitData is stored as reversed (highest to lowest), 
+    // we need to flip the index to get the correct limit for today
+    const flippedIndex = puffLimitData.length - 1 - Math.min(daysPassed, puffLimitData.length - 1);
+    return flippedIndex;
   }, [startDate, puffLimitData.length]);
 
   // --- PLAN OVER LOGIC ---
@@ -758,62 +761,76 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
       <View style={styles.graphContainer}>
         <Text style={styles.graphTitle}>Puff Reduction Plan</Text>
         {graphDataReady ? (
-          <View
-            style={{
-              width: SCREEN_WIDTH * 0.9, // 🟢 same as StatsScreen
-              borderRadius: 16,
-              overflow: 'hidden',
-              backgroundColor: '#000',
-              paddingRight: scale(35),
-            }}
-          >
-            <LineChart
-              data={{
-                labels: labels,
-                datasets: [
-                  {
-                    data: puffLimitData, // use as-is
-                    color: () => `#3B82F6`,
-                    strokeWidth: 2,
-                  },
-                  {
-                    data: puffEnteredData, // use as-is
-                    color: () => '#EF4444',
-                    strokeWidth: 2,
-                  },
-                ],
-              }}
-              width={SCREEN_WIDTH * 0.9}
-              height={Math.max(
-                verticalScale(160),
-                Math.min(verticalScale(240), SCREEN_HEIGHT * 0.3)
-              )}
-              yAxisLabel=""
-              withVerticalLabels={true}
-              withDots={false}
-              withInnerLines={false}
-              withOuterLines={false}
-              segments={5}
-              bezier
-              chartConfig={{
-                backgroundColor: '#000',
-                backgroundGradientFrom: '#000',
-                backgroundGradientTo: '#000',
-                decimalPlaces: 0,
-                fillShadowGradient: 'transparent',
-                fillShadowGradientOpacity: 0,
-                color: () => `#ffffff`,
-                labelColor: () => `#ffffff`,
-                style: {
-                  borderRadius: 16,
-                },
-              }}
+          <>
+            <View
               style={{
-                marginVertical: 8,
-                alignSelf: 'center',
+                width: SCREEN_WIDTH * 0.9, // 🟢 same as StatsScreen
+                borderRadius: 16,
+                overflow: 'hidden',
+                backgroundColor: '#000',
+                paddingRight: scale(35),
               }}
-            />
-          </View>
+            >
+              <LineChart
+                data={{
+                  labels: labels,
+                  datasets: [
+                    {
+                      data: puffLimitData.slice().reverse(), // use as-is
+                      color: () => `#3B82F6`,
+                      strokeWidth: 2,
+                    },
+                    {
+                      data: puffEnteredData, // use as-is
+                      color: () => '#EF4444',
+                      strokeWidth: 2,
+                    },
+                  ],
+                }}
+                width={SCREEN_WIDTH * 0.9}
+                height={Math.max(
+                  verticalScale(160),
+                  Math.min(verticalScale(240), SCREEN_HEIGHT * 0.3)
+                )}
+                yAxisLabel=""
+                withVerticalLabels={true}
+                withDots={false}
+                withInnerLines={false}
+                withOuterLines={false}
+                segments={5}
+                bezier
+                chartConfig={{
+                  backgroundColor: '#000',
+                  backgroundGradientFrom: '#000',
+                  backgroundGradientTo: '#000',
+                  decimalPlaces: 0,
+                  fillShadowGradient: 'transparent',
+                  fillShadowGradientOpacity: 0,
+                  color: () => `#ffffff`,
+                  labelColor: () => `#ffffff`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                }}
+                style={{
+                  marginVertical: 8,
+                  alignSelf: 'center',
+                }}
+              />
+            </View>
+            
+            {/* Legend Labels */}
+            <View style={styles.legendContainer}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
+                <Text style={styles.legendText}>Plan Limit</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+                <Text style={styles.legendText}>Puff Count</Text>
+              </View>
+            </View>
+          </>
         ) : (
           <Text style={styles.errorText}>Loading graph data...</Text>
         )}
@@ -1069,6 +1086,28 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000',
     textAlign: 'center',
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: verticalScale(15),
+    gap: scale(30),
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(8),
+  },
+  legendDot: {
+    width: scale(12),
+    height: scale(12),
+    borderRadius: scale(6),
+  },
+  legendText: {
+    fontSize: scale(14),
+    color: '#ffffff',
+    fontWeight: '500',
   },
 
 });

@@ -14,7 +14,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { scheduleDemoNotifications } from '../services/notifications';
 import { scheduleReminders } from '../services/notifications';
 
 const { width, height } = Dimensions.get('window');

@@ -1,6 +1,6 @@
 // src/screens/Onboarding1.tsx
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Add this line
 import { imgStyle as styles } from '../styles/imgStyle';
@@ -25,7 +25,11 @@ const Onboarding1 = () => {
   return (
     <View style={styles.container}>
       <View style={styles.videoContainer}>
-        
+        <Image 
+          source={require('../../assets/quitPlan.jpg')} 
+          style={[styles.video, { width: '95%' }]}
+          resizeMode="contain"
+        />
       </View>
 
       <View style={styles.content}>

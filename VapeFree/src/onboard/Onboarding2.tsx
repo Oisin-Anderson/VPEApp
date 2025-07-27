@@ -13,9 +13,9 @@ import { sharedStyles as styles, scale, verticalScale } from '../styles/choiceSt
 
 
 const options = [
-  '💰 Save money',
-  '❤️ Improve health',
-  '👪 For my Family',
+  'Save money',
+  'Improve health',
+  'For my Family',
   'All of the above',
 ];
 
