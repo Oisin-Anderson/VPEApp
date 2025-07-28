@@ -14,17 +14,17 @@ const LoadingScreen = () => {
 
       const hasUsedApp = await AsyncStorage.getItem('hasUsedApp');
 
-      if (hasUsedApp) {
+      /*if (hasUsedApp) {
         navigation.reset({
           index: 0,
           routes: [{ name: 'MainTabs' }],
         });
-      } else {
+      } else {*/
         navigation.reset({
           index: 0,
-          routes: [{ name: 'OnboardingScreen' }],
+          routes: [{ name: 'Onboarding17' }],
         });
-      }
+      //}
     };
 
     initialize();

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, TextInput, Animated, Easing, InteractionManager, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { LineChart } from 'react-native-chart-kit';
+// import { LineChart } from 'react-native-chart-kit';
 import { usePuff } from '../context/PuffContext';
 import { ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -771,52 +771,19 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
                 paddingRight: scale(35),
               }}
             >
-              <LineChart
-                data={{
-                  labels: labels,
-                  datasets: [
-                    {
-                      data: puffLimitData.slice().reverse(), // use as-is
-                      color: () => `#3B82F6`,
-                      strokeWidth: 2,
-                    },
-                    {
-                      data: puffEnteredData, // use as-is
-                      color: () => '#EF4444',
-                      strokeWidth: 2,
-                    },
-                  ],
-                }}
-                width={SCREEN_WIDTH * 0.9}
-                height={Math.max(
+              <View style={{
+                width: SCREEN_WIDTH * 0.9,
+                height: Math.max(
                   verticalScale(160),
                   Math.min(verticalScale(240), SCREEN_HEIGHT * 0.3)
-                )}
-                yAxisLabel=""
-                withVerticalLabels={true}
-                withDots={false}
-                withInnerLines={false}
-                withOuterLines={false}
-                segments={5}
-                bezier
-                chartConfig={{
-                  backgroundColor: '#000',
-                  backgroundGradientFrom: '#000',
-                  backgroundGradientTo: '#000',
-                  decimalPlaces: 0,
-                  fillShadowGradient: 'transparent',
-                  fillShadowGradientOpacity: 0,
-                  color: () => `#ffffff`,
-                  labelColor: () => `#ffffff`,
-                  style: {
-                    borderRadius: 16,
-                  },
-                }}
-                style={{
-                  marginVertical: 8,
-                  alignSelf: 'center',
-                }}
-              />
+                ),
+                backgroundColor: '#000',
+                borderRadius: 16,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Text style={{ color: '#fff' }}>Chart temporarily disabled</Text>
+              </View>
             </View>
             
             {/* Legend Labels */}

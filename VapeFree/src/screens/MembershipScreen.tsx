@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { formatCurrency, formatUSDAsLocalCurrency } from '../services/currency';
+import RevenueCatUI, { PAYWALL_RESULT } from "react-native-purchases-ui";
 
 
 const { width, height } = Dimensions.get('window');
@@ -159,6 +160,28 @@ setMoneySaved(saved);
         <TouchableOpacity style={[styles.option, styles.cancelButton]} onPress={() => setShowCancelPopup(true)}>
           <Ionicons name="close-circle" size={22} color="red" style={styles.icon} />
           <Text style={[styles.label, { color: 'red' }]}>Cancel Membership</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.option, { backgroundColor: '#2563eb' }]} 
+          onPress={async () => {
+            try {
+              const paywallResult = await RevenueCatUI.presentPaywallIfNeeded({
+                requiredEntitlementIdentifier: "premium"
+              });
+              
+              if (paywallResult === PAYWALL_RESULT.PURCHASED || 
+                  paywallResult === PAYWALL_RESULT.RESTORED) {
+                console.log("User has access to premium features");
+                // Handle successful purchase
+              }
+            } catch (error) {
+              console.error("Error presenting paywall:", error);
+            }
+          }}
+        >
+          <Ionicons name="card" size={22} color="#fff" style={styles.icon} />
+          <Text style={[styles.label, { color: '#fff' }]}>Upgrade to Premium</Text>
         </TouchableOpacity>
       </ScrollView>
 

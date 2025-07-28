@@ -34,11 +34,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-mail-composer",
-      [
-        "react-native-iap",
-        { "playStore": true }
-      ]
+      "expo-mail-composer"
     ],
     "extra": {
       "eas": {

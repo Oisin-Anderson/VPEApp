@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, InteractionManager, ActivityIndicator } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
+// import { LineChart } from 'react-native-chart-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePuff } from '../context/PuffContext';
 import { useFocusEffect } from '@react-navigation/native';
@@ -599,52 +599,20 @@ const StatsScreen = () => {
                       paddingRight: scale(16),
                     }}
                   >
-                    {/* Chart only, no custom y-axis overlay */}
-                    <LineChart
-                      data={{
-                        labels,
-                        datasets: [
-                          {
-                            data,
-                            color: () => '#EF4444',
-                            strokeWidth: 2,
-                          },
-                        ],
-                      }}
-                      width={SCREEN_WIDTH * 0.88 - scale(32)}
-                      height={Math.max(
+                    {/* Chart temporarily disabled for testing */}
+                    <View style={{
+                      width: SCREEN_WIDTH * 0.88 - scale(32),
+                      height: Math.max(
                         verticalScale(160),
                         Math.min(verticalScale(240), SCREEN_HEIGHT * 0.3)
-                      )}
-                      yAxisLabel=""
-                      withVerticalLabels={true}
-                      withDots={false}
-                      withInnerLines={false}
-                      withOuterLines={false}
-                      segments={5}
-                      bezier
-                      chartConfig={{
-                        backgroundColor: '#000',
-                        backgroundGradientFrom: '#000',
-                        backgroundGradientTo: '#000',
-                        decimalPlaces: 0,
-                        fillShadowGradient: '#ff0000',
-                        fillShadowGradientOpacity: 0.4,
-                        fillShadowGradientTo: '#ff0000',
-                        fillShadowGradientToOpacity: 0.4,
-                        color: () => `#ffffff`,
-                        labelColor: () => `#ffffff`,
-                        style: {
-                          borderRadius: 16,
-                        },
-                      }}
-                      style={{
-                        marginVertical: 0,
-                        alignSelf: 'center',
-                        backgroundColor: '#000',
-                        borderRadius: 16,
-                      }}
-                    />
+                      ),
+                      backgroundColor: '#000',
+                      borderRadius: 16,
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}>
+                      <Text style={{ color: '#fff' }}>Chart temporarily disabled</Text>
+                    </View>
                   </View>
                   {/* Cards */}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20, width: '100%' }}>
