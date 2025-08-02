@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView, InteractionManager, ActivityIndicator } from 'react-native';
-// import { LineChart } from 'react-native-chart-kit';
+import { View, Text, StyleSheet, Dimensions, ScrollView, InteractionManager, ActivityIndicator, Alert } from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePuff } from '../context/PuffContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { formatCurrency, formatUSDAsLocalCurrency } from '../services/currency';
+import { hasEntitlement } from '../services/revenueCat';
+import { useNavigation } from '@react-navigation/native';
 
 
 const BASE_WIDTH = 375;
@@ -25,6 +27,7 @@ interface PuffEntry {
 
 
 const StatsScreen = () => {
+  const navigation = useNavigation<any>();
   const [totalPuffsRecorded, setTotalPuffsRecorded] = useState(0);
 
 
@@ -69,6 +72,33 @@ const StatsScreen = () => {
 
 
   const [loading, setLoading] = useState(true);
+
+  // Screen-level protection - check premium access when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const checkPremiumAccess = async () => {
+        try {
+          const hasAccess = await hasEntitlement('PuffDaddy Pro');
+          if (!hasAccess) {
+            Alert.alert(
+              'Premium Required',
+              'You need a premium subscription to access this feature.',
+              [
+                { text: 'Get Premium', onPress: () => {
+                  navigation.navigate('Onboarding17');
+                }},
+                { text: 'Cancel', style: 'cancel' }
+              ]
+            );
+          }
+        } catch (error) {
+          console.error('Error checking premium access:', error);
+        }
+      };
+
+      checkPremiumAccess();
+    }, [])
+  );
 
 
   useEffect(() => {
@@ -564,16 +594,32 @@ const StatsScreen = () => {
               const { data, labels } = filteredChartDataMap[period];
               const { total, avg, change } = memoizedStatsMap[period];
 
-              if (!data.length || !labels.length) {
-                return (
-                  <View key={period} style={{ marginBottom: 40, alignItems: 'center' }}>
-                    <Text style={{ color: 'white' }}>No data for {period}</Text>
-                  </View>
-                );
-              }
+              // Ensure we have valid data for the chart
+              const safeLabels = labels && labels.length > 0 ? labels : 
+                period === 'day' ? Array.from({ length: 24 }, (_, i) => (i % 4 === 0 ? i.toString() : '')) :
+                period === 'week' ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] :
+                period === 'month' ? Array.from({ length: 30 }, (_, i) => (i % 5 === 0 ? (i + 1).toString() : '')) :
+                ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+              // For today period, use real-time puffCount data instead of cached data
+              const chartData = period === 'day' ? 
+                Array(24).fill(0).map((_, hour) => {
+                  const now = new Date();
+                  const currentHour = now.getHours();
+                  // If this is the current hour, use the real-time puffCount
+                  if (hour === currentHour) {
+                    return puffCount;
+                  }
+                  // For past hours, use the cached data
+                  return data && data[hour] ? data[hour] : 0;
+                }) : (data && data.length > 0 ? data : Array(safeLabels.length).fill(0));
+
+              // Ensure chartData has the same length as labels
+              const finalChartData = chartData.length === safeLabels.length ? chartData : 
+                Array(safeLabels.length).fill(0);
 
               // Before rendering the LineChart, calculate custom y-axis labels:
-              const maxValue = Math.max(...data, 1);
+              const maxValue = Math.max(...finalChartData, 1);
               const topLabel = Math.ceil(maxValue * 1.25);
               // const labelVals = [0, Math.ceil(maxValue * 0.25), Math.ceil(maxValue * 0.5), Math.ceil(maxValue * 0.75), Math.ceil(maxValue), topLabel];
               // Remove duplicates and sort ascending
@@ -599,20 +645,52 @@ const StatsScreen = () => {
                       paddingRight: scale(16),
                     }}
                   >
-                    {/* Chart temporarily disabled for testing */}
-                    <View style={{
-                      width: SCREEN_WIDTH * 0.88 - scale(32),
-                      height: Math.max(
+                    {/* Chart only, no custom y-axis overlay */}
+                    <LineChart
+                      data={{
+                        labels: safeLabels,
+                        datasets: [
+                          {
+                            data: finalChartData,
+                            color: () => '#EF4444',
+                            strokeWidth: 2,
+                          },
+                        ],
+                      }}
+                      width={SCREEN_WIDTH * 0.88 - scale(32)}
+                      height={Math.max(
                         verticalScale(160),
                         Math.min(verticalScale(240), SCREEN_HEIGHT * 0.3)
-                      ),
-                      backgroundColor: '#000',
-                      borderRadius: 16,
-                      justifyContent: 'center',
-                      alignItems: 'center'
-                    }}>
-                      <Text style={{ color: '#fff' }}>Chart temporarily disabled</Text>
-                    </View>
+                      )}
+                      yAxisLabel=""
+                      withVerticalLabels={true}
+                      withDots={false}
+                      withInnerLines={false}
+                      withOuterLines={false}
+                      segments={5}
+                      bezier
+                      chartConfig={{
+                        backgroundColor: '#000',
+                        backgroundGradientFrom: '#000',
+                        backgroundGradientTo: '#000',
+                        decimalPlaces: 0,
+                        fillShadowGradient: '#ff0000',
+                        fillShadowGradientOpacity: 0.4,
+                        fillShadowGradientTo: '#ff0000',
+                        fillShadowGradientToOpacity: 0.4,
+                        color: () => `#ffffff`,
+                        labelColor: () => `#ffffff`,
+                        style: {
+                          borderRadius: 16,
+                        },
+                      }}
+                      style={{
+                        marginVertical: 0,
+                        alignSelf: 'center',
+                        backgroundColor: '#000',
+                        borderRadius: 16,
+                      }}
+                    />
                   </View>
                   {/* Cards */}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20, width: '100%' }}>

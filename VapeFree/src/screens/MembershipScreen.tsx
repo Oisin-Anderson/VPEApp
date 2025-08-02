@@ -8,6 +8,8 @@ import {
   Pressable,
   Dimensions,
   ScrollView,
+  Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -15,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { formatCurrency, formatUSDAsLocalCurrency } from '../services/currency';
 import RevenueCatUI, { PAYWALL_RESULT } from "react-native-purchases-ui";
+import Purchases from 'react-native-purchases';
 
 
 const { width, height } = Dimensions.get('window');
@@ -103,43 +106,67 @@ const MembershipScreen = () => {
               }
             }
           } else {
-            relevantPuffCount = puffCount; // fallback to total if no start date
+            relevantPuffCount = puffCount;
           }
-          const expected = avgForCalc * daysSinceStart;
-const originalCost = (expected / 500) * 10;
-const actualCost = (relevantPuffCount / 500) * 10;
-const saved = originalCost - actualCost;
 
-// Debug logging for lifetime
-console.log(`=== LIFETIME CALCULATION ===`);
-console.log(`avgForCalc: ${avgForCalc}`);
-console.log(`daysSinceStart: ${daysSinceStart}`);
-console.log(`totalPuffs: ${puffCount}`);
-console.log(`relevantPuffCount: ${relevantPuffCount}`);
-console.log(`expected: ${expected}`);
-console.log(`originalCost: $${originalCost.toFixed(2)}`);
-console.log(`actualCost: $${actualCost.toFixed(2)}`);
-console.log(`moneySaved: $${saved.toFixed(2)}`);
-console.log(`========================`);
-
-setMoneySaved(saved);
+          const expectedPuffs = avgForCalc * daysSinceStart;
+          const originalCost = (expectedPuffs / 500) * 10;
+          const adjustedCost = (relevantPuffCount / 500) * 10;
+          const saved = originalCost - adjustedCost;
+          setMoneySaved(saved);
         } catch (err) {
           console.error('Failed to calculate savings:', err);
         }
       };
 
       fetchPuffsAndCalculateSavings();
+      fetchSubscription(); // Also refresh subscription status when screen is focused
     }, [])
   );
 
-  useEffect(() => {
-    const fetchSubscription = async () => {
-      // Replace with your backend call if needed
+  const fetchSubscription = async () => {
+    try {
+      // Check RevenueCat customer info for subscription status
+      const customerInfo = await Purchases.getCustomerInfo();
+      const hasActiveSubscription = customerInfo.entitlements.active['PuffDaddy Pro'] !== undefined;
+      
+      setIsActive(hasActiveSubscription);
+      
+      if (hasActiveSubscription) {
+        const premiumEntitlement = customerInfo.entitlements.active['PuffDaddy Pro'];
+        if (premiumEntitlement && premiumEntitlement.expirationDate) {
+          const expirationDate = new Date(premiumEntitlement.expirationDate);
+          const renewalDate = expirationDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          console.log('Active subscription found. Next renewal:', renewalDate);
+          setRenewalDate(renewalDate);
+          await AsyncStorage.setItem('renewalDate', renewalDate);
+        } else {
+          console.log('Active subscription found but no expiration date');
+          setRenewalDate('Active (No renewal date)');
+        }
+      } else {
+        console.log('No active subscription found');
+        setRenewalDate(null);
+        await AsyncStorage.removeItem('renewalDate');
+      }
+      
+      // Update local storage to match RevenueCat status
+      await AsyncStorage.setItem('subscriptionStatus', hasActiveSubscription ? 'active' : 'canceled');
+    } catch (error) {
+      console.error('Error fetching subscription status:', error);
+      // Fallback to local storage
       const status = await AsyncStorage.getItem('subscriptionStatus');
       const date = await AsyncStorage.getItem('renewalDate');
       setIsActive(status !== 'canceled');
       setRenewalDate(date);
-    };
+    }
+  };
+
+  useEffect(() => {
     fetchSubscription();
   }, []);
 
@@ -160,28 +187,6 @@ setMoneySaved(saved);
         <TouchableOpacity style={[styles.option, styles.cancelButton]} onPress={() => setShowCancelPopup(true)}>
           <Ionicons name="close-circle" size={22} color="red" style={styles.icon} />
           <Text style={[styles.label, { color: 'red' }]}>Cancel Membership</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.option, { backgroundColor: '#2563eb' }]} 
-          onPress={async () => {
-            try {
-              const paywallResult = await RevenueCatUI.presentPaywallIfNeeded({
-                requiredEntitlementIdentifier: "premium"
-              });
-              
-              if (paywallResult === PAYWALL_RESULT.PURCHASED || 
-                  paywallResult === PAYWALL_RESULT.RESTORED) {
-                console.log("User has access to premium features");
-                // Handle successful purchase
-              }
-            } catch (error) {
-              console.error("Error presenting paywall:", error);
-            }
-          }}
-        >
-          <Ionicons name="card" size={22} color="#fff" style={styles.icon} />
-          <Text style={[styles.label, { color: '#fff' }]}>Upgrade to Premium</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -206,12 +211,45 @@ setMoneySaved(saved);
               <TouchableOpacity
                 style={styles.giveUpButton}
                 onPress={async () => {
-                  setShowCancelPopup(false);
-                  setIsActive(false);
-                  setRenewalDate(null);
-                  await AsyncStorage.setItem('subscriptionStatus', 'canceled');
-                  await AsyncStorage.removeItem('renewalDate');
-                  // Optionally, call your backend to cancel the subscription here
+                  try {
+                    setShowCancelPopup(false);
+                    
+                    // Check current subscription status from RevenueCat
+                    const customerInfo = await Purchases.getCustomerInfo();
+                    const activePurchases = customerInfo.activeSubscriptions;
+                    
+                    if (activePurchases.length > 0) {
+                      // For iOS, we need to direct users to Settings to cancel
+                      if (Platform.OS === 'ios') {
+                        Alert.alert(
+                          'Cancel Subscription',
+                          'To cancel your subscription, please go to Settings > Apple ID > Subscriptions and cancel from there.',
+                          [{ text: 'OK' }]
+                        );
+                      } else {
+                        // For Android, we can attempt to cancel through Google Play
+                        Alert.alert(
+                          'Cancel Subscription',
+                          'To cancel your subscription, please go to Google Play Store > Subscriptions and cancel from there.',
+                          [{ text: 'OK' }]
+                        );
+                      }
+                    } else {
+                      // No active subscriptions found
+                      Alert.alert(
+                        'No Active Subscription',
+                        'No active subscription was found. Your subscription may have already been canceled.',
+                        [{ text: 'OK' }]
+                      );
+                    }
+                  } catch (error) {
+                    console.error('Error checking subscription status:', error);
+                    Alert.alert(
+                      'Error',
+                      'There was an error checking your subscription status. Please try again or contact support.',
+                      [{ text: 'OK' }]
+                    );
+                  }
                 }}
               >
                 <Text style={styles.giveUpText}>Give Up</Text>

@@ -15,7 +15,7 @@ const Onboarding16 = () => {
   const [hasTouched, setHasTouched] = useState(false);
 
   const handleContinue = () => {
-    navigation.navigate('Onboarding18');
+    navigation.navigate('Onboarding17');
   };
 
   const goals = [

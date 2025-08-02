@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, TextInput, Animated, Easing, InteractionManager, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, TextInput, Animated, Easing, InteractionManager, ActivityIndicator, Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-// import { LineChart } from 'react-native-chart-kit';
+import { LineChart } from 'react-native-chart-kit';
 import { usePuff } from '../context/PuffContext';
 import { ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Alert } from 'react-native';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { Dimensions } from 'react-native';
 import Progress from './Progress'; // adjust path if needed
+import { hasEntitlement } from '../services/revenueCat';
 
 
 const BASE_WIDTH = 375;
@@ -123,8 +123,32 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
   const [planPage, setPlanPage] = useState(0);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
+  // Screen-level protection - check premium access when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const checkPremiumAccess = async () => {
+        try {
+          const hasAccess = await hasEntitlement('PuffDaddy Pro');
+          if (!hasAccess) {
+            Alert.alert(
+              'Premium Required',
+              'You need a premium subscription to access this feature.',
+              [
+                { text: 'Get Premium', onPress: () => {
+                  navigation.navigate('Onboarding17');
+                }},
+                { text: 'Cancel', style: 'cancel' }
+              ]
+            );
+          }
+        } catch (error) {
+          console.error('Error checking premium access:', error);
+        }
+      };
 
-
+      checkPremiumAccess();
+    }, [])
+  );
 
 
   useEffect(() => {
@@ -481,10 +505,12 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
 
   const graphDataReady =
   totalDays > 0 &&
-  puffLimitData.length === totalDays &&
-  puffEnteredData.length === totalDays &&
-  puffLimitData.every(n => typeof n === 'number' && !isNaN(n)) &&
-  puffEnteredData.every(n => typeof n === 'number' && !isNaN(n));
+  puffLimitData.length > 0 &&
+  puffEnteredData.length > 0;
+
+  // Ensure we have data for the chart even if arrays are empty
+  const chartPuffLimitData = puffLimitData.length > 0 ? puffLimitData.slice().reverse() : Array(totalDays).fill(0);
+  const chartPuffEnteredData = puffEnteredData.length > 0 ? puffEnteredData : Array(totalDays).fill(0);
 
   // Generate labels for the chart based on totalDays
   let labels: string[] = [];
@@ -771,19 +797,52 @@ const GoalsScreen = React.forwardRef((props: GoalsScreenProps, ref) => {
                 paddingRight: scale(35),
               }}
             >
-              <View style={{
-                width: SCREEN_WIDTH * 0.9,
-                height: Math.max(
+              <LineChart
+                data={{
+                  labels: labels,
+                  datasets: [
+                    {
+                      data: chartPuffLimitData, // use as-is
+                      color: () => `#3B82F6`,
+                      strokeWidth: 2,
+                    },
+                    {
+                      data: chartPuffEnteredData, // use as-is
+                      color: () => '#EF4444',
+                      strokeWidth: 2,
+                    },
+                  ],
+                }}
+                width={SCREEN_WIDTH * 0.9}
+                height={Math.max(
                   verticalScale(160),
                   Math.min(verticalScale(240), SCREEN_HEIGHT * 0.3)
-                ),
-                backgroundColor: '#000',
-                borderRadius: 16,
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
-                <Text style={{ color: '#fff' }}>Chart temporarily disabled</Text>
-              </View>
+                )}
+                yAxisLabel=""
+                withVerticalLabels={true}
+                withDots={false}
+                withInnerLines={false}
+                withOuterLines={false}
+                segments={5}
+                bezier
+                chartConfig={{
+                  backgroundColor: '#000',
+                  backgroundGradientFrom: '#000',
+                  backgroundGradientTo: '#000',
+                  decimalPlaces: 0,
+                  fillShadowGradient: 'transparent',
+                  fillShadowGradientOpacity: 0,
+                  color: () => `#ffffff`,
+                  labelColor: () => `#ffffff`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                }}
+                style={{
+                  marginVertical: 8,
+                  alignSelf: 'center',
+                }}
+              />
             </View>
             
             {/* Legend Labels */}

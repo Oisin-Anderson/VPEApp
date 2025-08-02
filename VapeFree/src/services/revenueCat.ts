@@ -1,12 +1,22 @@
 import { Platform } from 'react-native';
-import Purchases, { LOG_LEVEL, PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
+import Purchases, { LOG_LEVEL, PurchasesOffering, PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 
 // Initialize RevenueCat
-export const initializeRevenueCat = () => {
-  Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
-
-  if (Platform.OS === 'android') {
-    Purchases.configure({ apiKey: 'goog_kQVOcjDakWJEEhcswnvEAErObHO' });
+export const initializeRevenueCat = async (userId?: string) => {
+  try {
+    Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+    
+    const config = {
+      apiKey: 'goog_kQVOcjDakWJEEhcswnvEAErObHO',
+      ...(userId && { appUserID: userId })
+    };
+    
+    await Purchases.configure(config);
+    console.log('RevenueCat initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('Error initializing RevenueCat:', error);
+    return false;
   }
 };
 
@@ -35,13 +45,24 @@ export const purchasePackage = async (pkg: PurchasesPackage) => {
 };
 
 // Check subscription status
-export const checkSubscriptionStatus = async () => {
+export const checkSubscriptionStatus = async (entitlementId: string = 'PuffDaddy Pro'): Promise<boolean> => {
   try {
     const customerInfo = await Purchases.getCustomerInfo();
-    return customerInfo.entitlements.active['premium'] || false;
+    return !!customerInfo.entitlements.active[entitlementId];
   } catch (error) {
     console.error('Error checking subscription status:', error);
     return false;
+  }
+};
+
+// Get customer info
+export const getCustomerInfo = async (): Promise<CustomerInfo | null> => {
+  try {
+    const customerInfo = await Purchases.getCustomerInfo();
+    return customerInfo;
+  } catch (error) {
+    console.error('Error getting customer info:', error);
+    return null;
   }
 };
 
@@ -56,10 +77,47 @@ export const restorePurchases = async () => {
   }
 };
 
+// Get all entitlements
+export const getEntitlements = async () => {
+  try {
+    const customerInfo = await Purchases.getCustomerInfo();
+    return customerInfo.entitlements;
+  } catch (error) {
+    console.error('Error getting entitlements:', error);
+    return null;
+  }
+};
+
+// Check if user has specific entitlement
+export const hasEntitlement = async (entitlementId: string): Promise<boolean> => {
+  try {
+    const customerInfo = await Purchases.getCustomerInfo();
+    return !!customerInfo.entitlements.active[entitlementId];
+  } catch (error) {
+    console.error('Error checking entitlement:', error);
+    return false;
+  }
+};
+
+// Get active subscriptions
+export const getActiveSubscriptions = async () => {
+  try {
+    const customerInfo = await Purchases.getCustomerInfo();
+    return customerInfo.activeSubscriptions;
+  } catch (error) {
+    console.error('Error getting active subscriptions:', error);
+    return [];
+  }
+};
+
 export default {
   initializeRevenueCat,
   getOfferings,
   purchasePackage,
   checkSubscriptionStatus,
+  getCustomerInfo,
   restorePurchases,
+  getEntitlements,
+  hasEntitlement,
+  getActiveSubscriptions,
 }; 

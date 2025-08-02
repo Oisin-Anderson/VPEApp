@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef, memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, FlatList, InteractionManager } from 'react-native';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, memo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, TextInput, Pressable, Alert, FlatList, InteractionManager, BackHandler } from 'react-native';
+import { usePuff } from '../context/PuffContext';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { usePuff } from '../context/PuffContext';
-import { Animated } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { hasEntitlement } from '../services/revenueCat';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { forwardRef, useImperativeHandle } from 'react';
+import { Animated } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -78,6 +79,7 @@ const HomeScreen = (
   { refreshKey }: { refreshKey: number },
   ref: React.Ref<{ openNicotineModal: () => void }>
 ) => {
+  const navigation = useNavigation<any>();
   const { puffCount, setPuffCount, nicotineMg, setNicotineMg } = usePuff();
   const [lifetimePuffs, setLifetimePuffs] = useState(0);
   const [nicotineStrength, setNicotineStrength] = useState('0');
@@ -112,6 +114,34 @@ const HomeScreen = (
   useImperativeHandle(ref, () => ({
     openNicotineModal: () => setIsModalVisible(true),
   }));
+
+  // Screen-level protection - check premium access when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const checkPremiumAccess = async () => {
+        try {
+          const hasAccess = await hasEntitlement('PuffDaddy Pro');
+          if (!hasAccess) {
+            Alert.alert(
+              'Premium Required',
+              'You need a premium subscription to access this feature.',
+              [
+                { text: 'Get Premium', onPress: () => {
+                  // Navigate to paywall or show paywall
+                  navigation.navigate('Onboarding17');
+                }},
+                { text: 'Cancel', style: 'cancel' }
+              ]
+            );
+          }
+        } catch (error) {
+          console.error('Error checking premium access:', error);
+        }
+      };
+
+      checkPremiumAccess();
+    }, [])
+  );
 
 
   useEffect(() => {
