@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "PuffDaddy",
+    "slug": "PuffDaddy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.oagames.PuffDaddy",
+      "versionCode": 1,
+      "allowBackup": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-mail-composer"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e21f2f9b-be1d-4a67-918e-86a64496c8a7"
+      }
+    }
+  }
+}
