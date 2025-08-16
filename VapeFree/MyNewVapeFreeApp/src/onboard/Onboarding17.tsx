@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, ScrollView, Dimensions } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { scale, verticalScale } from 'react-native-size-matters';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState } from 'react';
+import { Alert, Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { scale, verticalScale } from 'react-native-size-matters';
+import { formatUSDAsLocalCurrency } from '../services/currency';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,8 +38,8 @@ const plans = [
   {
     id: 'yearly',
     title: 'Yearly',
-    year: '$29.99',
-    perMonth: '$2.49',
+    year: formatUSDAsLocalCurrency(29.99),
+    perMonth: formatUSDAsLocalCurrency(2.49),
     badge: 'Most Popular - Save 50%',
     trial: 'Try Free for 3 days',
     productId: 'com.puffdaddy.yearly',
@@ -47,8 +47,8 @@ const plans = [
   {
     id: 'monthly',
     title: 'Monthly',
-    year: '$59.99',
-    perMonth: '$4.99',
+    year: formatUSDAsLocalCurrency(59.99),
+    perMonth: formatUSDAsLocalCurrency(4.99),
     badge: '',
     trial: '',
     productId: 'com.puffdaddy.monthly',

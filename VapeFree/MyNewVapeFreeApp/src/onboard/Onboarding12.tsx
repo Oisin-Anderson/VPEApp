@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import MaskedView from '@react-native-masked-view/masked-view';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import MaskedView from '@react-native-masked-view/masked-view';
-import { usePuff } from '../context/PuffContext';
+import React from 'react';
+import { Dimensions, Text, TouchableOpacity, View } from 'react-native';
 import ProgressBar from '../components/ProgressBar';
-import { sharedStyles as styles, scale, verticalScale } from '../styles/choiceStyle';
+import { usePuff } from '../context/PuffContext';
+import { formatUSDAsLocalCurrency } from '../services/currency';
+import { scale, sharedStyles as styles, verticalScale } from '../styles/choiceStyle';
 
 // Responsive scaling functions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -41,6 +42,7 @@ const Onboarding12 = () => {
 
   const originalCost = ((puffCount * 365) / 500) * 10;
   const moneySaved = originalCost - adjustedCost;
+  const formattedMoneySaved = formatUSDAsLocalCurrency(moneySaved);
 
   const handleContinue = () => {
     navigation.navigate('Onboarding13');
@@ -54,13 +56,13 @@ const Onboarding12 = () => {
           <Text style={{ color: '#fff', fontSize: scale(18), textAlign: 'center', marginBottom: verticalScale(16), lineHeight: verticalScale(26) }}>
             If you stick to your goal, you could save
           </Text>
-          <MaskedView maskElement={<Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center' }}>€{moneySaved.toFixed(2)}</Text>}>
+          <MaskedView maskElement={<Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center' }}>{formattedMoneySaved}</Text>}>
             <LinearGradient
               colors={['#EF4444', '#3B82F6']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center', opacity: 0 }}>€{moneySaved.toFixed(2)}</Text>
+              <Text style={{ fontSize: scale(48), fontWeight: 'bold', textAlign: 'center', opacity: 0 }}>{formattedMoneySaved}</Text>
             </LinearGradient>
           </MaskedView>
           <Text style={{ color: '#fff', fontSize: scale(18), textAlign: 'center', marginTop: verticalScale(16), lineHeight: verticalScale(26) }}>

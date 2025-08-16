@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, InteractionManager, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { usePuff } from '../context/PuffContext';
+import { formatUSDAsLocalCurrency } from '../services/currency';
 
 
 const BASE_WIDTH = 375;
@@ -609,7 +610,7 @@ const StatsScreen = () => {
                         else if (saved < 0) { color = '#e50000'; prefix = '-'; }
                         return (
                           <Text style={[styles.statValue, { color }] }>
-                            {prefix}${Math.abs(saved).toFixed(2)}
+                            {prefix}{formatUSDAsLocalCurrency(Math.abs(saved))}
                           </Text>
                         );
                       })()}

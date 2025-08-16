@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
+  Dimensions,
   Modal,
   Pressable,
-  Dimensions,
   ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
+import { formatUSDAsLocalCurrency } from '../services/currency';
 
 
 const { width, height } = Dimensions.get('window');
@@ -134,7 +134,7 @@ const MembershipScreen = () => {
           <Pressable style={styles.popup} onPress={() => {}}>
             <Text style={styles.popupTitle}>Quitting Already?</Text>
             <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 10 }}>
-              You've saved <Text style={{ color: '#00d600' }}>${moneySaved.toFixed(2)}</Text> since you started using this app. Would you like to keep saving even more?
+              You've saved <Text style={{ color: '#00d600' }}>{formatUSDAsLocalCurrency(moneySaved)}</Text> since you started using this app. Would you like to keep saving even more?
             </Text>
             <View style={styles.buttonRow}>
               <TouchableOpacity style={styles.confirmButton} onPress={() => setShowCancelPopup(false)}>

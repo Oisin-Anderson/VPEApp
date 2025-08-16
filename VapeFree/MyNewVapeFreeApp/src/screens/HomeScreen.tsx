@@ -406,7 +406,10 @@ useEffect(() => {
             (1000 * 60 * 60 * 24)
           );
 
-          const limit = puffLimitData[daysPassed] ?? null;
+          // Since puffLimitData is stored as reversed (highest to lowest), 
+          // we need to flip the index to get the correct limit for today
+          const flippedIndex = puffLimitData.length - 1 - Math.min(daysPassed, puffLimitData.length - 1);
+          const limit = puffLimitData[flippedIndex] ?? null;
           setTodayLimit(typeof limit === 'number' ? limit : null);
         } else {
           setTodayLimit(null);
@@ -457,7 +460,10 @@ useEffect(() => {
           (1000 * 60 * 60 * 24)
         );
 
-        const limit = puffLimitData[daysPassed] ?? null;
+        // Since puffLimitData is stored as reversed (highest to lowest), 
+        // we need to flip the index to get the correct limit for today
+        const flippedIndex = puffLimitData.length - 1 - Math.min(daysPassed, puffLimitData.length - 1);
+        const limit = puffLimitData[flippedIndex] ?? null;
         setTodayLimit(typeof limit === 'number' ? limit : null);
       } else {
         setTodayLimit(null);

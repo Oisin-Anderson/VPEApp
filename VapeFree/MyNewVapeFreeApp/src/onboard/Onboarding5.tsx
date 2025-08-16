@@ -1,7 +1,7 @@
 // src/screens/Onboarding1.tsx
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native'; // Add this line
+import React from 'react';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { imgStyle as styles } from '../styles/imgStyle';
 
 const Onboarding5 = () => {
@@ -14,7 +14,11 @@ const Onboarding5 = () => {
   return (
     <View style={styles.container}>
       <View style={styles.videoContainer}>
-        
+        <Image 
+          source={require('../../assets/quitPlan.jpg')} 
+          style={[styles.video, { width: '95%' }]}
+          resizeMode="contain"
+        />
       </View>
 
       <View style={styles.content}>
