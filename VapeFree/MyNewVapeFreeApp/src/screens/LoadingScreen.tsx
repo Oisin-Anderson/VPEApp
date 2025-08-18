@@ -1,8 +1,8 @@
 // src/screens/LoadingScreen.tsx
-import React, { useEffect } from 'react';
-import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import React, { useEffect } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
 
 const LoadingScreen = () => {
   const navigation = useNavigation<any>();
@@ -14,17 +14,17 @@ const LoadingScreen = () => {
 
       const hasUsedApp = await AsyncStorage.getItem('hasUsedApp');
 
-      if (hasUsedApp) {
+      /*if (hasUsedApp) {
         navigation.reset({
           index: 0,
           routes: [{ name: 'MainTabs' }],
         });
-      } else {
+      } else {*/
         navigation.reset({
           index: 0,
           routes: [{ name: 'OnboardingScreen' }],
         });
-      }
+      //}
     };
 
     initialize();

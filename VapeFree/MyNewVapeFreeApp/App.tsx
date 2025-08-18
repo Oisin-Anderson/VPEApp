@@ -1,11 +1,12 @@
-import React from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import AppNavigator from './src/navigation/AppNavigator';
-import { PuffProvider } from './src/context/PuffContext'; // or ../context/PuffContext
-import * as SystemUI from 'expo-system-ui';
 import * as NavigationBar from 'expo-navigation-bar';
+import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
+import React, { useEffect } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
+import Purchases from 'react-native-purchases';
+import { PuffProvider } from './src/context/PuffContext'; // or ../context/PuffContext
+import AppNavigator from './src/navigation/AppNavigator';
 
 
 /*Notifications.setNotificationHandler({
@@ -28,6 +29,10 @@ if (Platform.OS === 'android') {
 
 
 export default function App() {
+
+  useEffect(() => {
+    Purchases.configure({ apiKey: 'goog_kQVOcjDakWJEEhcswnvEAErObHO' }); // TODO: Replace with your actual RevenueCat public API key
+  }, []);
 
 
   return (

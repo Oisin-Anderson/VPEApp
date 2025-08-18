@@ -1,21 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import ProgressBar from '../components/ProgressBar';
-import { sharedStyles as styles, scale, verticalScale } from '../styles/choiceStyle';
+import { sharedStyles as styles } from '../styles/choiceStyle';
 
 
 const options = [
-  '💰 Save money',
-  '❤️ Improve health',
-  '👪 For my Family',
+  'Save money',
+  'Improve health',
+  'For my Family',
   'All of the above',
 ];
 

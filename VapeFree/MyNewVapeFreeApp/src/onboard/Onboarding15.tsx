@@ -17,7 +17,7 @@ const Onboarding15 = () => {
       <ProgressBar currentStep={6} totalSteps={6} />
       <View style={styles.videoContainer}>
         <Image 
-          source={require('../../assets/quitPlan.jpg')} 
+          source={require('../../assets/moneyIcon.png')} 
           style={[styles.video, { width: '95%' }]}
           resizeMode="contain"
         />

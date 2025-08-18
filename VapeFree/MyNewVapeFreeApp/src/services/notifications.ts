@@ -10,11 +10,11 @@ export const cancelAllReminders = async () => {
 export const scheduleReminders = async () => {
   await cancelAllReminders();
 
-  // Schedule notifications at 12pm, 6pm, and 12am daily
+  // Schedule notifications at 9am, 3pm, and 9pm daily (local time)
   const notificationTimes = [
-    { hour: 12, minute: 0 }, // 12:00 PM
-    { hour: 18, minute: 0 }, // 6:00 PM
-    { hour: 0, minute: 0 },  // 12:00 AM
+    { hour: 9, minute: 0 },  // 9:00 AM
+    { hour: 15, minute: 0 }, // 3:00 PM
+    { hour: 21, minute: 0 }, // 9:00 PM
   ];
 
   for (const time of notificationTimes) {

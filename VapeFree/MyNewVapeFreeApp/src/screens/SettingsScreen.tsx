@@ -1,21 +1,20 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Linking,
-  Share,
-  Modal,
-  Pressable,
-  Alert,
-  ScrollView,
-  Dimensions,
-} from 'react-native';
-import * as MailComposer from 'expo-mail-composer';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { Platform } from 'react-native';
+import React, { useState } from 'react';
+import {
+  Alert,
+  Dimensions,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 
 const { width, height } = Dimensions.get('window');
@@ -33,63 +32,13 @@ const SettingsScreen = () => {
   const navigation = useNavigation<any>();
 
   const emailHelp = async (subject: string) => {
-    if (Platform.OS === 'android') {
-      // For Android, open the website contact form
-      Linking.openURL('https://oagames.xyz/contact.html?type=help');
-      return;
-    }
-
-    // For iOS, use MailComposer with fallback
-    const isAvailable = await MailComposer.isAvailableAsync();
-
-    if (isAvailable) {
-      MailComposer.composeAsync({
-        recipients: ['oisin@oagames.xyz'],
-        subject: subject,
-        body: '',
-      });
-    } else {
-      // Fallback: open default mail app with mailto link
-      const mailto = `mailto:oisin@oagames.xyz?subject=${encodeURIComponent(subject)}`;
-      try {
-        Linking.openURL(mailto);
-      } catch (e) {
-        Alert.alert(
-          'Mail App Not Available',
-          'Email is not set up on this device. Please configure your mail app first.'
-        );
-      }
-    }
+    // For all platforms, open the website contact form
+    Linking.openURL('https://oagames.xyz/contact.html?type=help');
   };
 
   const emailFeedback = async (subject: string) => {
-    if (Platform.OS === 'android') {
-      // For Android, open the website contact form
-      Linking.openURL('https://oagames.xyz/contact.html?type=feedback');
-      return;
-    }
-
-    // For iOS, use MailComposer with fallback
-    const isAvailable = await MailComposer.isAvailableAsync();
-
-    if (isAvailable) {
-      MailComposer.composeAsync({
-        recipients: ['oisin@oagames.xyz'],
-        subject: subject,
-        body: '',
-      });
-    } else {
-      // Fallback: open default mail app with mailto link
-      const mailto = `mailto:oisin@oagames.xyz?subject=${encodeURIComponent(subject)}`;
-      try {
-        Linking.openURL(mailto);
-      } catch (e) {
-        Alert.alert(
-          'Mail App Not Available',
-          'Email is not set up on this device. Please configure your mail app first.'
-        );
-      }
-    }
+    // For all platforms, open the website contact form
+    Linking.openURL('https://oagames.xyz/contact.html?type=feedback');
   };
 
 

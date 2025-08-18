@@ -15,7 +15,7 @@ const Onboarding5 = () => {
     <View style={styles.container}>
       <View style={styles.videoContainer}>
         <Image 
-          source={require('../../assets/quitPlan.jpg')} 
+          source={require('../../assets/icon.png')} 
           style={[styles.video, { width: '95%' }]}
           resizeMode="contain"
         />
